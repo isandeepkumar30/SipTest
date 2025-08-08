@@ -8,49 +8,70 @@ import notifee, {
 import { name as appName } from './app.json';
 import App from './src/App';
 
-notifee.onBackgroundEvent(async ({ type, detail, event }) => {
+// Handle background events from Notifee
+notifee.onBackgroundEvent( async ( { type, detail } ) =>
+{
   const { notification, pressAction } = detail;
 
-  if (
-    type === notifee.BackgroundEventType &&
-    EventType.ACTION_PRESS &&
-    pressAction.id === 'mark-as-read'
-  ) {
-    const notificationId = event.detail.notification.id;
-    await notifee.cancelNotification(notificationId);
+  console.log( 'Notifee background event:', type, detail );
+
+  if ( type === EventType.ACTION_PRESS && pressAction?.id === 'read' )
+  {
+    console.log( 'Mark as read action pressed' );
+    await notifee.cancelNotification( notification.id );
   }
-});
+} );
 
-messaging().setBackgroundMessageHandler(async remoteMessage => {
-  DisplayNotification(remoteMessage);
-});
+// Handle background messages from FCM
+messaging().setBackgroundMessageHandler( async remoteMessage =>
+{
+  console.log( 'FCM Message handled in the background!', remoteMessage );
+  await DisplayNotification( remoteMessage );
+} );
 
-const DisplayNotification = async remoteMessage => {
-  const channelId = await notifee.createChannel({
-    id: 'default',
-    name: 'Default Channel',
-    importance: AndroidImportance.HIGH,
-    actions: [
-      {
-        title: 'Mark as Read',
+// Display notification function
+const DisplayNotification = async remoteMessage =>
+{
+  try
+  {
+    console.log( 'Displaying notification for:', remoteMessage );
+
+    const channelId = await notifee.createChannel( {
+      id: 'default',
+      name: 'Default Channel',
+      importance: AndroidImportance.HIGH,
+      actions: [
+        {
+          title: 'Mark as Read',
+          pressAction: {
+            id: 'read',
+          },
+        },
+      ],
+    } );
+
+    await notifee.displayNotification( {
+      title: remoteMessage.data?.title || remoteMessage.notification?.title || 'New Message',
+      body: remoteMessage.data?.body || remoteMessage.notification?.body || 'You have a new message',
+      android: {
+        channelId,
+        color: AndroidColor.RED,
+        importance: AndroidImportance.HIGH,
+        showTimestamp: true,
+        timestamp: Date.now(),
+        smallIcon: 'ic_launcher', // Make sure you have this icon
+        largeIcon: remoteMessage.notification?.android?.imageUrl,
         pressAction: {
-          id: 'read',
+          id: 'default',
         },
       },
-    ],
-  });
-
-  await notifee.displayNotification({
-    title: remoteMessage.data.title,
-    body: remoteMessage.data.body,
-    android: {
-      channelId,
-      color: AndroidColor.RED,
-      importance: AndroidImportance.HIGH,
-      showTimestamp: true,
-      timestamp: Date.now(),
-    },
-  });
+      data: remoteMessage.data,
+    } );
+  } catch ( error )
+  {
+    console.error( 'Error displaying notification:', error );
+  }
 };
 
-AppRegistry.registerComponent(appName, () => App);
+// Register the main application component
+AppRegistry.registerComponent( appName, () => App );
