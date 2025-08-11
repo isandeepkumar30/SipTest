@@ -3,6 +3,8 @@ import messaging, {
   FirebaseMessagingTypes,
 } from '@react-native-firebase/messaging';
 import notifee, { AndroidColor, AndroidImportance } from '@notifee/react-native';
+import CallDetectionService from '../../services/CallDetectionService';
+
 
 export async function requestUserPermission ()
 {
@@ -102,4 +104,50 @@ export const DisplayNotification = async ( RemoteMessage: any ) =>
       importance: AndroidImportance.HIGH,
     },
   } );
+};
+
+// Call Detection Functions - Added to notification service
+export const initializeCallDetection = async () =>
+{
+  try
+  {
+    const started = await CallDetectionService.startCallDetection();
+    const status = CallDetectionService.getStatus();
+
+    return {
+      started,
+      hasPermissions: status.hasPermissions,
+      isListening: status.isListening,
+      error: started ? null : 'Failed to start call detection'
+    };
+  } catch ( error )
+  {
+    console.error( 'Call detection initialization error:', error );
+    return {
+      started: false,
+      hasPermissions: false,
+      isListening: false,
+      error: error.message
+    };
+  }
+};
+
+export const addCallListener = ( callback: ( callData: any ) => void ) =>
+{
+  return CallDetectionService.addListener( callback );
+};
+
+export const removeCallListener = ( listener: any ) =>
+{
+  CallDetectionService.removeListener( listener );
+};
+
+export const stopCallDetection = () =>
+{
+  CallDetectionService.stopCallDetection();
+};
+
+export const getCallDetectionStatus = () =>
+{
+  return CallDetectionService.getStatus();
 };

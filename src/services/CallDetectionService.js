@@ -11,15 +11,17 @@ class CallDetectionService
     {
         this.listeners = [];
         this.isListening = false;
-
-
-        console.log( 'CallDetectionService initialized' );
-        console.log( 'CallDetectionManager available:', !!CallDetectionManager );
-        console.log( 'callDetectionEmitter available:', !!callDetectionEmitter );
+        this.permissionsChecked = false;
+        this.hasPermissions = false;
     }
 
     async requestPermissions()
     {
+        if ( this.permissionsChecked )
+        {
+            return this.hasPermissions;
+        }
+
         if ( Platform.OS === 'android' )
         {
             try
@@ -30,14 +32,27 @@ class CallDetectionService
                     phoneState: await PermissionsAndroid.check( PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE ),
                     processOutgoing: await PermissionsAndroid.check( PermissionsAndroid.PERMISSIONS.PROCESS_OUTGOING_CALLS ),
                     callLog: await PermissionsAndroid.check( PermissionsAndroid.PERMISSIONS.READ_CALL_LOG ),
+                    postNotifications: await PermissionsAndroid.check( PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS )
                 };
 
                 console.log( 'Current permissions:', currentPermissions );
+
+                // Check if all permissions are already granted
+                const allAlreadyGranted = Object.values( currentPermissions ).every( permission => permission );
+
+                if ( allAlreadyGranted )
+                {
+                    console.log( 'All permissions already granted' );
+                    this.permissionsChecked = true;
+                    this.hasPermissions = true;
+                    return true;
+                }
 
                 const granted = await PermissionsAndroid.requestMultiple( [
                     PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
                     PermissionsAndroid.PERMISSIONS.PROCESS_OUTGOING_CALLS,
                     PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
+                    PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
                 ] );
 
                 console.log( 'Permission results:', granted );
@@ -45,22 +60,25 @@ class CallDetectionService
                 const phoneStateGranted = granted[PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE] === PermissionsAndroid.RESULTS.GRANTED;
                 const outgoingCallsGranted = granted[PermissionsAndroid.PERMISSIONS.PROCESS_OUTGOING_CALLS] === PermissionsAndroid.RESULTS.GRANTED;
                 const callLogGranted = granted[PermissionsAndroid.PERMISSIONS.READ_CALL_LOG] === PermissionsAndroid.RESULTS.GRANTED;
+                const postNotificationsGranted = granted[PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS] === PermissionsAndroid.RESULTS.GRANTED;
 
-                const allGranted = phoneStateGranted && outgoingCallsGranted && callLogGranted;
+                const allGranted = phoneStateGranted && outgoingCallsGranted && callLogGranted && postNotificationsGranted;
 
-                console.log( 'Final permission status:' );
-                console.log( '- Phone State:', phoneStateGranted );
-                console.log( '- Process Outgoing Calls:', outgoingCallsGranted );
-                console.log( '- Call Log:', callLogGranted );
-                console.log( '- All Granted:', allGranted );
+                this.permissionsChecked = true;
+                this.hasPermissions = allGranted;
 
                 return allGranted;
             } catch ( err )
             {
                 console.error( 'Permission request failed:', err );
+                this.permissionsChecked = true;
+                this.hasPermissions = false;
                 return false;
             }
         }
+
+        this.permissionsChecked = true;
+        this.hasPermissions = true;
         return true;
     }
 
@@ -91,7 +109,6 @@ class CallDetectionService
                 this.isListening = true;
                 console.log( 'Call detection started successfully' );
 
-                // Add a test event listener to verify it's working
                 this.addTestListener();
 
             } catch ( error )
@@ -114,11 +131,10 @@ class CallDetectionService
             console.log( 'Adding test listener for CallStateChanged events...' );
             const testListener = callDetectionEmitter.addListener( 'CallStateChanged', ( data ) =>
             {
-                console.log( '=== CALL STATE CHANGED EVENT RECEIVED ===' );
-                console.log( 'Raw event data:', data );
+
                 console.log( 'State:', data?.state );
                 console.log( 'Phone Number:', data?.phoneNumber );
-                console.log( '========================================' );
+
             } );
 
             this.listeners.push( testListener );
@@ -208,7 +224,16 @@ class CallDetectionService
             hasManager: !!CallDetectionManager,
             hasEmitter: !!callDetectionEmitter,
             listenersCount: this.listeners.length,
+            permissionsChecked: this.permissionsChecked,
+            hasPermissions: this.hasPermissions,
         };
+    }
+
+    // Method to reset permission status (useful for testing or when permissions change)
+    resetPermissions()
+    {
+        this.permissionsChecked = false;
+        this.hasPermissions = false;
     }
 }
 

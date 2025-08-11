@@ -1,26 +1,36 @@
 {
   "project_info": {
-    "project_number": "517968124936",
-    "project_id": "callervismaad",
-    "storage_bucket": "callervismaad.firebasestorage.app"
+    "project_number": "730785151065",
+    "project_id": "callertimer-8456b",
+    "storage_bucket": "callertimer-8456b.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:517968124936:android:33d5680126ec52b3d045bd",
+        "mobilesdk_app_id": "1:730785151065:android:90bea38174bfbc753e1948",
         "android_client_info": {
           "package_name": "com.callervismaad"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "730785151065-ahaseop08q6u0b7dfe9nt0us1h53ed6f.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyB-uzpO9rbP_eenxoOR2Km8N17GOvVvxk8"
+          "current_key": "AIzaSyATVzmIA6M9V7cVquCBhppdcbZ7kx-P8Yw"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "730785151065-ahaseop08q6u0b7dfe9nt0us1h53ed6f.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

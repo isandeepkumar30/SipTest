@@ -1,272 +1,403 @@
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import DeviceInfo from 'react-native-device-info';
+
+import NotesScreen from './components/NotesScreen/notesScreen';
+import UpcomingScreen from './components/UpcomingScreen/upcomingScreen';
+
 import React, { useEffect, useState } from 'react';
+import { runInAction } from 'mobx';
+import { observer } from 'mobx-react';
+import { fetchHomePageData, homePageStore } from './Store/HomePageStore/storeHomePage';
+import { Pressable } from 'react-native';
+import { LoginScreen } from './components/LoginScreen/loginFormScreen';
+import { StudentList } from './components/HomeScreen/homeScreen';
+import { styles } from './AppStyle';
+import { authStore } from './Store/LogicAuthStore/authStore';
+
+// Import CallDetectionService
+import CallDetectionService from './services/CallDetectionService';
+
 import
 {
-  View,
-  Text,
-  StyleSheet,
-  Alert,
-  PermissionsAndroid,
-  Platform,
-  ToastAndroid,
-  SafeAreaView,
-} from 'react-native';
-import messaging from '@react-native-firebase/messaging';
-import notifee, {
-  AndroidImportance,
-  AndroidColor,
-  EventType,
-} from '@notifee/react-native';
-import CallDetectionService from './services/CallDetectionService';
-import { CALL_STATES, getCallStateDescription } from './utils/CallStates';
+  requestUserPermission,
+  NotificationListener,
+  getFCMToken,
+  initializeCallDetection,
+  addCallListener,
+  removeCallListener,
+  stopCallDetection
+} from './utils/NotificationServiceFunction/notificationService';
+import { callStore, fetchingPastEventsData } from './Store/CallLogsStore/callLogsStore';
 
-const App = () =>
+import
 {
-  const [fcmToken, setFcmToken] = useState( '' );
-  const [callState, setCallState] = useState( CALL_STATES.IDLE );
-  const [currentCallNumber, setCurrentCallNumber] = useState( '' );
-  const [permissionsGranted, setPermissionsGranted] = useState( false );
+  ActivityIndicator,
+  View,
+  Alert,
+  Text,
+  Modal,
+  ToastAndroid,
+} from 'react-native';
+import { TwoFactorAuthorization } from './components/TwoFAuthorizationScreen/twofactorauthorization';
+import LogoutButton from './utils/LogoutButton/logoutbutton';
+import GetVersionName from './utils/GetVersionComponent/getVersion';
 
-  // Request all necessary permissions
-  const requestPermissions = async () =>
+// Define call states based on your CallDetectionService
+const CALL_STATES = {
+  IDLE: 'IDLE',
+  RINGING: 'RINGING',
+  OFFHOOK: 'OFFHOOK',
+  OUTGOING: 'OUTGOING'
+};
+
+const getCallStateDescription = ( state: string ): string =>
+{
+  switch ( state )
   {
-    if ( Platform.OS === 'android' )
-    {
-      try
-      {
-        const granted = await PermissionsAndroid.requestMultiple( [
-          PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
-          PermissionsAndroid.PERMISSIONS.PROCESS_OUTGOING_CALLS,
-          PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-        ] );
+    case CALL_STATES.IDLE:
+      return 'No Call';
+    case CALL_STATES.RINGING:
+      return 'Incoming Call';
+    case CALL_STATES.OFFHOOK:
+      return 'Call Active';
+    case CALL_STATES.OUTGOING:
+      return 'Outgoing Call';
+    default:
+      return 'Unknown';
+  }
+};
 
-        const phoneStateGranted = granted[PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE] === PermissionsAndroid.RESULTS.GRANTED;
-        const outgoingCallsGranted = granted[PermissionsAndroid.PERMISSIONS.PROCESS_OUTGOING_CALLS] === PermissionsAndroid.RESULTS.GRANTED;
-        const callLogGranted = granted[PermissionsAndroid.PERMISSIONS.READ_CALL_LOG] === PermissionsAndroid.RESULTS.GRANTED;
-        const notificationsGranted = granted[PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS] === PermissionsAndroid.RESULTS.GRANTED;
+const MainStack = createNativeStackNavigator();
+const AuthStack = createNativeStackNavigator();
 
-        const allGranted = phoneStateGranted && outgoingCallsGranted && callLogGranted;
-        setPermissionsGranted( allGranted );
+function MainScreens ()
+{
+  return (
+    <MainStack.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}>
+      <MainStack.Screen
+        name="studentList"
+        component={StudentList}
+      />
+      <MainStack.Screen
+        name="twoFactorAuthorization"
+        component={TwoFactorAuthorization}
+      />
+      <MainStack.Screen
+        name="NotesScreen"
+        component={NotesScreen}
+        options={{
+          headerShown: true,
+          headerTitleStyle: { color: '#fff' },
+          headerTitleAlign: 'center',
+          headerTitle: 'Student Notes',
+          headerStyle: { backgroundColor: '#b6488d' },
+          headerTintColor: 'white',
+          headerShadowVisible: false,
+          headerRight: () => <LogoutButton />,
+        }}
+      />
+      <MainStack.Screen
+        name="UpcomingNotesScreen"
+        component={UpcomingScreen}
+        options={{
+          headerShown: true,
+          headerTitleStyle: { color: '#fff' },
+          headerTitleAlign: 'center',
+          headerTitle: 'Event Calendar',
+          headerStyle: { backgroundColor: '#b6488d' },
+          headerTintColor: 'white',
+          headerShadowVisible: false,
+          headerRight: () => <LogoutButton />,
+        }}
+      />
+    </MainStack.Navigator>
+  );
+}
 
-        if ( !allGranted )
-        {
-          Alert.alert(
-            'Permissions Required',
-            'This app requires phone state and call log permissions to function properly.',
-          );
-        }
+const LoaderComponent = () => (
+  <View style={styles.loaderContainer}>
+    <ActivityIndicator size="large" color="#b6488d" />
+  </View>
+);
 
-        return allGranted;
-      } catch ( err )
-      {
-        console.warn( 'Permission request failed:', err );
-        return false;
-      }
-    }
-    return true;
-  };
+const App = observer( () =>
+{
+  const [versionName, setVersionName] = useState<string>( '' );
+  const [apiVersionName, setApiVersionName] = useState<string>( '' );
+  const [loadingVersion, setLoadingVersion] = useState<boolean>( true );
+  const [fcmToken, setFcmToken] = useState<string>( '' );
+  const [callState, setCallState] = useState<string>( CALL_STATES.IDLE );
+  const [currentCallNumber, setCurrentCallNumber] = useState<string>( '' );
+  const [permissionsGranted, setPermissionsGranted] = useState<boolean>( false );
+  const [callListener, setCallListener] = useState<any>( null );
 
-  // Initialize FCM
-  const initializeFCM = async () =>
+  const fetchVersionName = async (): Promise<void> =>
   {
     try
     {
-      // Request FCM permission
-      const authStatus = await messaging().requestPermission();
-      const enabled =
-        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+      const version = await DeviceInfo.getVersion();
+      setVersionName( version );
+    } catch ( error )
+    {
+      console.error( 'Error fetching version name:', error );
+      setVersionName( 'Unknown' );
+    }
+  };
 
-      if ( enabled )
+  const fetchingVersionName = async (): Promise<void> =>
+  {
+    setLoadingVersion( true );
+
+    try
+    {
+      const apiUrlFromStorage = 'https://sipabacuslms.co.nz/api/';
+
+      if ( apiUrlFromStorage )
       {
-        console.log( 'FCM Authorization status:', authStatus );
-
-        // Get FCM token
-        const token = await messaging().getToken();
-        setFcmToken( token );
-        console.log( 'FCM Token:', token );
-
-        // Listen to token refresh
-        messaging().onTokenRefresh( token =>
-        {
-          setFcmToken( token );
-          console.log( 'FCM Token refreshed:', token );
+        const response = await fetch( apiUrlFromStorage + 'app-lts-version', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
         } );
 
-        // Handle foreground messages
-        const unsubscribe = messaging().onMessage( async remoteMessage =>
+        if ( response.ok )
         {
-          console.log( 'FCM Message received in foreground:', remoteMessage );
-          await displayNotification( remoteMessage );
-        } );
-
-        // Handle notification opened app
-        messaging().onNotificationOpenedApp( remoteMessage =>
+          const responseData = await response.json();
+          setApiVersionName( responseData.lts_version || 'Unknown Version' );
+        } else
         {
-          console.log( 'Notification caused app to open from background:', remoteMessage );
-        } );
-
-        // Check whether an initial notification is available
-        messaging()
-          .getInitialNotification()
-          .then( remoteMessage =>
+          const errorMessage = `Error: ${ response.status } - ${ response.statusText }`;
+          if ( ToastAndroid?.show )
           {
-            if ( remoteMessage )
-            {
-              console.log( 'Notification caused app to open from quit state:', remoteMessage );
-            }
-          } );
-
-        return unsubscribe;
-      } else
-      {
-        console.log( 'FCM permission not granted' );
+            ToastAndroid.show( errorMessage, ToastAndroid.LONG );
+          }
+          console.error( errorMessage );
+        }
       }
+    } catch ( error )
+    {
+      console.error( 'Error fetching API version:', error );
+      if ( ToastAndroid?.show )
+      {
+        ToastAndroid.show( 'An error occurred while fetching data.', ToastAndroid.LONG );
+      }
+      setApiVersionName( 'Unknown Version' );
+    }
+
+    setLoadingVersion( false );
+  };
+
+  // Initialize FCM using your notification service
+  const initializeFCM = async (): Promise<void> =>
+  {
+    try
+    {
+      console.log( 'Initializing FCM...' );
+
+      // Request FCM permissions
+      await requestUserPermission();
+
+      // Set up notification listeners
+      await NotificationListener();
+
+      console.log( 'FCM initialized successfully' );
     } catch ( error )
     {
       console.error( 'FCM initialization error:', error );
     }
   };
 
-  // Display notification using Notifee
-  const displayNotification = async ( remoteMessage: any ) =>
+  // Initialize call detection using your custom service
+  const initializeCallDetectionService = async (): Promise<any> =>
   {
     try
     {
-      const channelId = await notifee.createChannel( {
-        id: 'default',
-        name: 'Default Channel',
-        importance: AndroidImportance.HIGH,
-        actions: [
-          {
-            title: 'Mark as Read',
-            pressAction: {
-              id: 'read',
-            },
-          },
-        ],
-      } );
+      console.log( 'Initializing call detection service...' );
 
-      await notifee.displayNotification( {
-        title: remoteMessage.data?.title || remoteMessage.notification?.title || 'New Message',
-        body: remoteMessage.data?.body || remoteMessage.notification?.body || 'You have a new message',
-        android: {
-          channelId,
-          color: AndroidColor.RED,
-          importance: AndroidImportance.HIGH,
-          showTimestamp: true,
-          timestamp: Date.now(),
-        },
-      } );
+      // First request permissions using CallDetectionService
+      const hasPermissions = await CallDetectionService.requestPermissions();
+      console.log( 'Call detection permissions:', hasPermissions );
+
+      if ( !hasPermissions )
+      {
+        Alert.alert(
+          'Permissions Required',
+          'This app requires phone permissions for call detection. Please grant the necessary permissions.',
+          [
+            { text: 'OK', onPress: () => console.log( 'Permission alert dismissed' ) }
+          ]
+        );
+        setPermissionsGranted( false );
+        return null;
+      }
+
+    // Start call detection
+      const started = await CallDetectionService.startCallDetection();
+      console.log( 'Call detection started:', started );
+
+      if ( started )
+      {
+        setPermissionsGranted( true );
+
+        // Add listener using CallDetectionService
+        const listener = CallDetectionService.addListener( ( callData: any ) =>
+        {
+          console.log( 'Call State Changed in App:', callData );
+
+          if ( callData?.state )
+          {
+            setCallState( callData.state );
+            console.log( 'Call state updated to:', callData.state );
+          }
+
+          if ( callData?.phoneNumber )
+          {
+            setCurrentCallNumber( callData.phoneNumber );
+            console.log( 'Phone number updated to:', callData.phoneNumber );
+          } else if ( callData?.state === CALL_STATES.IDLE )
+          {
+            setCurrentCallNumber( '' );
+          }
+
+          // Show toast for call state changes
+          const stateDescription = getCallStateDescription( callData?.state || CALL_STATES.IDLE );
+          if ( ToastAndroid?.show )
+          {
+            ToastAndroid.show(
+              `Call: ${ stateDescription }${ callData?.phoneNumber ? ` - ${ callData.phoneNumber }` : '' }`,
+              ToastAndroid.LONG
+            );
+          }
+
+          // Handle different call states for your app logic
+          switch ( callData?.state )
+          {
+            case CALL_STATES.RINGING:
+              console.log( 'Incoming call detected from:', callData?.phoneNumber );
+              if ( callData?.phoneNumber )
+              {
+                // Fetch student details for incoming call
+                fetchingPastEventsData( callData.phoneNumber, 'RINGING' );
+              }
+              break;
+
+            case CALL_STATES.OFFHOOK:
+              console.log( 'Call answered' );
+              if ( callData?.phoneNumber )
+              {
+                // Fetch student details when call is answered
+                fetchingPastEventsData( callData.phoneNumber, 'OFFHOOK' );
+              }
+              break;
+
+            case CALL_STATES.OUTGOING:
+              console.log( 'Outgoing call to:', callData?.phoneNumber );
+              if ( callData?.phoneNumber )
+              {
+                // Optionally fetch student details for outgoing calls
+                fetchingPastEventsData( callData.phoneNumber, 'OUTGOING' );
+              }
+              break;
+
+            case CALL_STATES.IDLE:
+              console.log( 'Call ended' );
+              setCurrentCallNumber( '' );
+              // Auto-close modal when call ends
+              if ( callStore?.setModalVisible )
+              {
+                callStore.setModalVisible( false );
+              }
+              break;
+
+            default:
+              console.log( 'Unknown call state:', callData?.state );
+              break;
+          }
+        } );
+
+        setCallListener( listener );
+        console.log( 'Call listener added successfully' );
+        return listener;
+      } else
+      {
+        console.log( 'Call detection failed to start' );
+        setPermissionsGranted( false );
+      }
     } catch ( error )
     {
-      console.error( 'Error displaying notification:', error );
-    }
-  };
-
-  // Initialize call detection
-  const initializeCallDetection = async () =>
-  {
-    const started = await CallDetectionService.startCallDetection();
-
-    if ( started )
-    {
-      const callListener = CallDetectionService.addListener( ( callData: any ) =>
-      {
-        console.log( 'Call State Changed:', callData );
-        setCallState( callData.state );
-        setCurrentCallNumber( callData.phoneNumber || '' );
-
-        // Show toast for call state changes
-        const stateDescription = getCallStateDescription( callData.state );
-        ToastAndroid.show(
-          `Call State: ${ stateDescription }${ callData.phoneNumber ? ` - ${ callData.phoneNumber }` : '' }`,
-          ToastAndroid.LONG
-        );
-
-        // Handle different call states
-        switch ( callData.state )
-        {
-          case CALL_STATES.RINGING:
-            console.log( 'Incoming call from:', callData.phoneNumber );
-            break;
-          case CALL_STATES.OFFHOOK:
-            console.log( 'Call answered' );
-            break;
-          case CALL_STATES.OUTGOING:
-            console.log( 'Outgoing call to:', callData.phoneNumber );
-            break;
-          case CALL_STATES.IDLE:
-            console.log( 'Call ended' );
-            setCurrentCallNumber( '' );
-            break;
-        }
-      } );
-
-      return callListener;
+      console.error( 'Call detection initialization error:', error );
+      setPermissionsGranted( false );
     }
     return null;
   };
 
-  // Initialize app
+  // Monitor FCM token changes
   useEffect( () =>
   {
-    let fcmUnsubscribe = null;
-    let callListener = null;
+    const tokenInterval = setInterval( async () =>
+    {
+      try
+      {
+        const currentToken = await AsyncStorage.getItem( 'FcmToken' );
+        if ( currentToken && currentToken !== fcmToken )
+        {
+          setFcmToken( currentToken );
+          console.log( 'FCM Token updated:', currentToken );
+        }
+      } catch ( error )
+      {
+        console.error( 'Error checking FCM token:', error );
+      }
+    }, 5000 );
 
+    return () => clearInterval( tokenInterval );
+  }, [fcmToken] );
+
+  // Initialize versions on mount
+  useEffect( () =>
+  {
+    const initializeVersions = async () =>
+    {
+      await fetchVersionName();
+      await fetchingVersionName();
+    };
+
+    initializeVersions();
+  }, [] );
+
+  // Main app initialization
+  useEffect( () =>
+  {
     const initializeApp = async () =>
     {
       try
       {
+        console.log( 'Starting app initialization...' );
 
-        const permissionsGranted = await requestPermissions();
+        // Initialize FCM first
+        await initializeFCM();
 
-        // Initialize FCM
-        fcmUnsubscribe = await initializeFCM();
+        // Initialize call detection using CallDetectionService
+        await initializeCallDetectionService();
 
-        // Initialize call detection if permissions are granted
-        if ( permissionsGranted )
-        {
-          callListener = await initializeCallDetection();
-        }
-
-        // Handle Notifee background events
-        notifee.onBackgroundEvent( async ( { type, detail } ) =>
-        {
-          const { notification, pressAction } = detail;
-
-          if ( type === EventType.ACTION_PRESS && pressAction?.id === 'read' )
-          {
-            await notifee.cancelNotification( notification.id );
-          }
-        } );
-
-
-        notifee.onForegroundEvent( ( { type, detail } ) =>
-        {
-          const { notification, pressAction } = detail;
-
-          if ( type === EventType.ACTION_PRESS && pressAction?.id === 'read' )
-          {
-            notifee.cancelNotification( notification.id );
-          }
-        } );
+        console.log( 'App initialization completed' );
 
       } catch ( error )
       {
-        console.error( 'App initialization error:', error );
+        console.error( 'Error initializing app:', error );
       }
     };
 
     initializeApp();
 
-
+    // Cleanup function
     return () =>
     {
-      if ( fcmUnsubscribe )
-      {
-        fcmUnsubscribe();
-      }
+      console.log( 'App cleanup...' );
       if ( callListener )
       {
         CallDetectionService.removeListener( callListener );
@@ -275,150 +406,288 @@ const App = () =>
     };
   }, [] );
 
-  const getCallStateColor = ( state: any ) =>
+  // Check login status
+  useEffect( () =>
   {
-    switch ( state )
+    const checkUserLoginStatus = async () =>
     {
-      case CALL_STATES.RINGING:
-        return '#4CAF50'; // Green
-      case CALL_STATES.OFFHOOK:
-        return '#2196F3'; // Blue
-      case CALL_STATES.OUTGOING:
-        return '#FF9800'; // Orange
-      case CALL_STATES.IDLE:
-      default:
-        return '#757575'; // Gray
-    }
-  };
+      try
+      {
+        const isLoggedIn = await AsyncStorage.getItem( 'isUserLoggedIn' );
+        if ( isLoggedIn === 'true' && authStore )
+        {
+          runInAction( () =>
+          {
+            authStore.isLoggedIn = true;
+          } );
+        }
+        if ( callStore?.setIsAppLoading )
+        {
+          callStore.setIsAppLoading( false );
+        }
+      } catch ( error )
+      {
+        console.error( 'Error checking login status:', error );
+        if ( callStore?.setIsAppLoading )
+        {
+          callStore.setIsAppLoading( false );
+        }
+      }
+    };
+
+    checkUserLoginStatus();
+  }, [] );
+
+  if ( ( callStore?.isAppLoading ) || loadingVersion )
+  {
+    return <LoaderComponent />;
+  }
+
+  const isVersionMismatch = versionName !== apiVersionName;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>App Status Dashboard</Text>
+    <NavigationContainer>
+      {isVersionMismatch ? (
+        <GetVersionName versionName={versionName} apiVersionName={apiVersionName} />
+      ) : ( authStore?.isLoggedIn ) ? (
+        <MainScreens />
+      ) : (
+        <AuthStack.Navigator
+          screenOptions={{
+            headerShown: false,
+          }}>
+          <AuthStack.Screen name="Login" component={LoginScreen} />
+        </AuthStack.Navigator>
+      )}
 
-        {/* Permissions Status */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Permissions</Text>
-          <View style={[styles.statusItem, { backgroundColor: permissionsGranted ? '#4CAF50' : '#F44336' }]}>
-            <Text style={styles.statusText}>
-              {permissionsGranted ? 'All Permissions Granted' : 'Permissions Required'}
-            </Text>
-          </View>
-        </View>
-
-        {/* FCM Status */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Firebase Messaging</Text>
-          <View style={[styles.statusItem, { backgroundColor: fcmToken ? '#4CAF50' : '#FF9800' }]}>
-            <Text style={styles.statusText}>
-              {fcmToken ? 'FCM Connected' : 'FCM Initializing...'}
-            </Text>
-          </View>
-          {fcmToken ? (
-            <Text style={styles.tokenText} numberOfLines={3}>
-              Token: {fcmToken}
-            </Text>
-          ) : null}
-        </View>
-
-        {/* Call Detection Status */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Call Detection</Text>
-          <View style={[styles.statusItem, { backgroundColor: getCallStateColor( callState ) }]}>
-            <Text style={styles.statusText}>
-              {getCallStateDescription( callState )}
-            </Text>
-          </View>
+      {/* Call Detection Status Indicator (Development Only) */}
+      {__DEV__ && permissionsGranted && (
+        <View style={{
+          position: 'absolute',
+          top: 50,
+          right: 10,
+          backgroundColor: callState === CALL_STATES.IDLE ? '#757575' : '#4CAF50',
+          padding: 8,
+          borderRadius: 6,
+          zIndex: 1000,
+          elevation: 5
+        }}>
+          <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
+            Call: {getCallStateDescription( callState )}
+          </Text>
           {currentCallNumber ? (
-            <Text style={styles.phoneNumber}>
-              Phone Number: {currentCallNumber}
+            <Text style={{ color: 'white', fontSize: 8 }}>
+              {currentCallNumber}
             </Text>
           ) : null}
         </View>
+      )}
 
-        {/* Instructions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Instructions</Text>
-          <Text style={styles.instruction}>
-            • Make or receive phone calls to test call detection
-          </Text>
-          <Text style={styles.instruction}>
-            • Send FCM notifications to test messaging
-          </Text>
-          <Text style={styles.instruction}>
-            • Check console logs for detailed information
+      {/* FCM Status Indicator (Development Only) */}
+      {__DEV__ && (
+        <View style={{
+          position: 'absolute',
+          top: 100,
+          right: 10,
+          backgroundColor: fcmToken ? '#4CAF50' : '#FF9800',
+          padding: 8,
+          borderRadius: 6,
+          zIndex: 1000,
+          elevation: 5
+        }}>
+          <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
+            FCM: {fcmToken ? 'Connected' : 'Loading...'}
           </Text>
         </View>
-      </View>
-    </SafeAreaView>
-  );
-};
+      )}
 
-const styles = StyleSheet.create( {
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 30,
-    color: '#333',
-  },
-  section: {
-    marginBottom: 20,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 15,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.22,
-    shadowRadius: 2.22,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
-  },
-  statusItem: {
-    padding: 10,
-    borderRadius: 5,
-    marginBottom: 10,
-  },
-  statusText: {
-    color: 'white',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  tokenText: {
-    fontSize: 12,
-    color: '#666',
-    backgroundColor: '#f0f0f0',
-    padding: 8,
-    borderRadius: 4,
-    fontFamily: 'monospace',
-  },
-  phoneNumber: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  instruction: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 5,
-  },
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={callStore?.modalVisible || false}
+        onRequestClose={() =>
+        {
+          if ( callStore?.setModalVisible )
+          {
+            callStore.setModalVisible( false );
+          }
+        }}>
+        <View
+          style={[
+            styles.modalContainer,
+            { padding: 10, backgroundColor: 'rgba(0,0,0,.8)' },
+          ]}>
+          <View
+            style={{
+              backgroundColor: 'white',
+              borderTopLeftRadius: 8,
+              borderTopRightRadius: 8,
+              borderBottomRightRadius: 8,
+              borderBottomLeftRadius: 8,
+              display: 'flex',
+              padding: 0,
+              width: '90%',
+            }}>
+            <Text
+              style={{
+                backgroundColor: '#b6488d',
+                width: '100%',
+                borderTopLeftRadius: 6,
+                borderTopRightRadius: 6,
+                paddingHorizontal: 20,
+                paddingVertical: 12,
+                fontSize: 16,
+                fontWeight: 'bold',
+                color: '#ffffff',
+              }}>
+              Sip Abacus LMS Caller
+            </Text>
+
+            <View
+              style={{
+                padding: 20,
+                paddingBottom: 0,
+              }}>
+
+              {/* Call Status Info */}
+              {currentCallNumber ? (
+                <View style={{
+                  backgroundColor: '#f0f8ff',
+                  padding: 12,
+                  borderRadius: 8,
+                  marginBottom: 15,
+                  borderLeftWidth: 4,
+                  borderLeftColor: '#b6488d'
+                }}>
+                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>
+                    Call Status: {getCallStateDescription( callState )}
+                  </Text>
+                  <Text style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+                    Number: {currentCallNumber}
+                  </Text>
+                </View>
+              ) : null}
+
+              <View
+                style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                }}>
+                <Text
+                  style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 10 }}>
+                  Student Name:
+                </Text>
+                <Text
+                  style={{
+                    marginLeft: 5,
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    color: '#b6488d',
+                    width: '60%',
+                  }}>
+                  {callStore?.studentDetails?.studentName || 'N/A'}
+                </Text>
+              </View>
+              <View
+                style={{
+                  marginBottom: 10,
+                  display: 'flex',
+                  flexDirection: 'row',
+                }}>
+                <Text style={{ fontWeight: 'bold', fontSize: 16 }}>
+                  Parent Name:{' '}
+                </Text>
+                <Text
+                  style={{
+                    marginLeft: 5,
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    color: '#b6488d',
+                    width: '60%',
+                  }}>
+                  {callStore?.studentDetails?.parentName || 'N/A'}
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-around',
+                padding: 20,
+                paddingTop: 0,
+              }}>
+              <Pressable
+                style={[
+                  styles.viewDetailsButton,
+                  { width: '48%', alignItems: 'center' },
+                ]}
+                onPress={() =>
+                {
+                  const studentName = callStore?.studentDetails?.studentName;
+                  if ( studentName )
+                  {
+                    if ( callStore?.setStudentName )
+                    {
+                      callStore.setStudentName( studentName );
+                    }
+                    if ( homePageStore?.setSearchQuery )
+                    {
+                      homePageStore.setSearchQuery( studentName );
+                    }
+                    if ( fetchHomePageData )
+                    {
+                      fetchHomePageData();
+                    }
+                    if ( callStore?.setModalVisible )
+                    {
+                      callStore.setModalVisible( false );
+                    }
+                  } else
+                  {
+                    if ( ToastAndroid?.show )
+                    {
+                      ToastAndroid.show(
+                        'Student name is empty.',
+                        ToastAndroid.LONG,
+                      );
+                    }
+                  }
+                }}>
+                <Text
+                  style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }}>
+                  View Details
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.closeButton,
+                  {
+                    width: '48%',
+                    alignItems: 'center',
+                  },
+                ]}
+                onPress={() =>
+                {
+                  if ( callStore?.setModalVisible )
+                  {
+                    callStore.setModalVisible( false );
+                  }
+                }}>
+                <Text
+                  style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }}>
+                  Close
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </NavigationContainer>
+  );
 } );
 
 export default App;
