@@ -23,11 +23,7 @@ import
 {
   requestUserPermission,
   NotificationListener,
-  getFCMToken,
-  initializeCallDetection,
-  addCallListener,
-  removeCallListener,
-  stopCallDetection
+
 } from './utils/NotificationServiceFunction/notificationService';
 import { callStore, fetchingPastEventsData } from './Store/CallLogsStore/callLogsStore';
 
@@ -273,7 +269,7 @@ const App = observer( () =>
             );
           }
 
-          // Handle different call states for your app logic
+
           switch ( callData?.state )
           {
             case CALL_STATES.RINGING:
@@ -394,7 +390,7 @@ const App = observer( () =>
 
     initializeApp();
 
-    // Cleanup function
+
     return () =>
     {
       console.log( 'App cleanup...' );
@@ -449,7 +445,7 @@ const App = observer( () =>
     <NavigationContainer>
       {isVersionMismatch ? (
         <GetVersionName versionName={versionName} apiVersionName={apiVersionName} />
-      ) : ( authStore?.isLoggedIn ) ? (
+      ) : authStore.isLoggedIn ? (
         <MainScreens />
       ) : (
         <AuthStack.Navigator
@@ -460,57 +456,15 @@ const App = observer( () =>
         </AuthStack.Navigator>
       )}
 
-      {/* Call Detection Status Indicator (Development Only) */}
-      {__DEV__ && permissionsGranted && (
-        <View style={{
-          position: 'absolute',
-          top: 50,
-          right: 10,
-          backgroundColor: callState === CALL_STATES.IDLE ? '#757575' : '#4CAF50',
-          padding: 8,
-          borderRadius: 6,
-          zIndex: 1000,
-          elevation: 5
-        }}>
-          <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
-            Call: {getCallStateDescription( callState )}
-          </Text>
-          {currentCallNumber ? (
-            <Text style={{ color: 'white', fontSize: 8 }}>
-              {currentCallNumber}
-            </Text>
-          ) : null}
-        </View>
-      )}
 
-      {/* FCM Status Indicator (Development Only) */}
-      {__DEV__ && (
-        <View style={{
-          position: 'absolute',
-          top: 100,
-          right: 10,
-          backgroundColor: fcmToken ? '#4CAF50' : '#FF9800',
-          padding: 8,
-          borderRadius: 6,
-          zIndex: 1000,
-          elevation: 5
-        }}>
-          <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
-            FCM: {fcmToken ? 'Connected' : 'Loading...'}
-          </Text>
-        </View>
-      )}
 
       <Modal
         animationType="slide"
         transparent={true}
-        visible={callStore?.modalVisible || false}
+        visible={callStore.modalVisible}
         onRequestClose={() =>
         {
-          if ( callStore?.setModalVisible )
-          {
-            callStore.setModalVisible( false );
-          }
+          callStore.setModalVisible( false );
         }}>
         <View
           style={[
@@ -548,26 +502,6 @@ const App = observer( () =>
                 padding: 20,
                 paddingBottom: 0,
               }}>
-
-              {/* Call Status Info */}
-              {currentCallNumber ? (
-                <View style={{
-                  backgroundColor: '#f0f8ff',
-                  padding: 12,
-                  borderRadius: 8,
-                  marginBottom: 15,
-                  borderLeftWidth: 4,
-                  borderLeftColor: '#b6488d'
-                }}>
-                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#333' }}>
-                    Call Status: {getCallStateDescription( callState )}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-                    Number: {currentCallNumber}
-                  </Text>
-                </View>
-              ) : null}
-
               <View
                 style={{
                   display: 'flex',
@@ -586,7 +520,7 @@ const App = observer( () =>
                     color: '#b6488d',
                     width: '60%',
                   }}>
-                  {callStore?.studentDetails?.studentName || 'N/A'}
+                  {callStore.studentDetails.studentName}
                 </Text>
               </View>
               <View
@@ -606,10 +540,13 @@ const App = observer( () =>
                     color: '#b6488d',
                     width: '60%',
                   }}>
-                  {callStore?.studentDetails?.parentName || 'N/A'}
+                  {callStore.studentDetails.parentName}
+
                 </Text>
               </View>
             </View>
+
+
 
             <View
               style={{
@@ -627,34 +564,19 @@ const App = observer( () =>
                 ]}
                 onPress={() =>
                 {
-                  const studentName = callStore?.studentDetails?.studentName;
+                  const { studentName } = callStore.studentDetails;
                   if ( studentName )
                   {
-                    if ( callStore?.setStudentName )
-                    {
-                      callStore.setStudentName( studentName );
-                    }
-                    if ( homePageStore?.setSearchQuery )
-                    {
-                      homePageStore.setSearchQuery( studentName );
-                    }
-                    if ( fetchHomePageData )
-                    {
-                      fetchHomePageData();
-                    }
-                    if ( callStore?.setModalVisible )
-                    {
-                      callStore.setModalVisible( false );
-                    }
+                    callStore.setStudentName( studentName );
+                    homePageStore.setSearchQuery( studentName );
+                    fetchHomePageData();
+                    callStore.setModalVisible( false );
                   } else
                   {
-                    if ( ToastAndroid?.show )
-                    {
-                      ToastAndroid.show(
-                        'Student name is empty.',
-                        ToastAndroid.LONG,
-                      );
-                    }
+                    ToastAndroid.show(
+                      'Student name is empty.',
+                      ToastAndroid.LONG,
+                    );
                   }
                 }}>
                 <Text
@@ -672,10 +594,7 @@ const App = observer( () =>
                 ]}
                 onPress={() =>
                 {
-                  if ( callStore?.setModalVisible )
-                  {
-                    callStore.setModalVisible( false );
-                  }
+                  callStore.setModalVisible( false );
                 }}>
                 <Text
                   style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }}>
