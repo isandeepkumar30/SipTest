@@ -2,11 +2,11 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceInfo from 'react-native-device-info';
-
+import BackgroundService from 'react-native-background-actions';
 import NotesScreen from './components/NotesScreen/notesScreen';
 import UpcomingScreen from './components/UpcomingScreen/upcomingScreen';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react';
 import { fetchHomePageData, homePageStore } from './Store/HomePageStore/storeHomePage';
@@ -16,6 +16,9 @@ import { StudentList } from './components/HomeScreen/homeScreen';
 import { styles } from './AppStyle';
 import { authStore } from './Store/LogicAuthStore/authStore';
 
+const sleep = ( time: number ): Promise<void> =>
+  new Promise( resolve => setTimeout( () => resolve(), time ) );
+
 // Import CallDetectionService
 import CallDetectionService from './services/CallDetectionService';
 
@@ -23,7 +26,6 @@ import
 {
   requestUserPermission,
   NotificationListener,
-
 } from './utils/NotificationServiceFunction/notificationService';
 import { callStore, fetchingPastEventsData } from './Store/CallLogsStore/callLogsStore';
 
@@ -35,6 +37,7 @@ import
   Text,
   Modal,
   ToastAndroid,
+  AppState,
 } from 'react-native';
 import { TwoFactorAuthorization } from './components/TwoFAuthorizationScreen/twofactorauthorization';
 import LogoutButton from './utils/LogoutButton/logoutbutton';
@@ -46,6 +49,57 @@ const CALL_STATES = {
   RINGING: 'RINGING',
   OFFHOOK: 'OFFHOOK',
   OUTGOING: 'OUTGOING'
+} as const;
+
+// ===== IMPROVED BACKGROUND TASK =====
+const backgroundTask = async ( taskDataArguments: any ) =>
+{
+  const delay = taskDataArguments?.delay ?? 5000;
+  console.log( 'Background task started with delay:', delay );
+
+  while ( BackgroundService.isRunning() )
+  {
+    try
+    {
+      console.log( 'Background task running...' );
+
+      // Keep call detection active
+      const isCallDetectionActive = await CallDetectionService.isActive();
+      if ( !isCallDetectionActive )
+      {
+        console.log( 'Restarting call detection in background...' );
+        await CallDetectionService.startCallDetection();
+      }
+
+      // Check app state and handle accordingly
+      const currentAppState = AppState.currentState;
+      console.log( 'App state in background:', currentAppState );
+
+      await sleep( delay );
+    } catch ( error )
+    {
+      console.error( 'Background task error:', error );
+      await sleep( delay );
+    }
+  }
+
+  console.log( 'Background task stopped' );
+};
+
+// ===== BACKGROUND SERVICE OPTIONS =====
+const backgroundOptions = {
+  taskName: 'CallDetectionService',
+  taskTitle: 'Call Detection Active',
+  taskDesc: 'Monitoring incoming calls for student information',
+  taskIcon: {
+    name: 'ic_launcher',
+    type: 'mipmap',
+  },
+  color: '#b6488d',
+  linkingURI: 'callervismaad://call',
+  parameters: {
+    delay: 5000,
+  },
 };
 
 const getCallStateDescription = ( state: string ): string =>
@@ -71,18 +125,9 @@ const AuthStack = createNativeStackNavigator();
 function MainScreens ()
 {
   return (
-    <MainStack.Navigator
-      screenOptions={{
-        headerShown: false,
-      }}>
-      <MainStack.Screen
-        name="studentList"
-        component={StudentList}
-      />
-      <MainStack.Screen
-        name="twoFactorAuthorization"
-        component={TwoFactorAuthorization}
-      />
+    <MainStack.Navigator screenOptions={{ headerShown: false }}>
+      <MainStack.Screen name="studentList" component={StudentList} />
+      <MainStack.Screen name="twoFactorAuthorization" component={TwoFactorAuthorization} />
       <MainStack.Screen
         name="NotesScreen"
         component={NotesScreen}
@@ -123,6 +168,8 @@ const LoaderComponent = () => (
 
 const App = observer( () =>
 {
+  // State management
+  const [isBackgroundServiceStarted, setIsBackgroundServiceStarted] = useState( false );
   const [versionName, setVersionName] = useState<string>( '' );
   const [apiVersionName, setApiVersionName] = useState<string>( '' );
   const [loadingVersion, setLoadingVersion] = useState<boolean>( true );
@@ -130,9 +177,18 @@ const App = observer( () =>
   const [callState, setCallState] = useState<string>( CALL_STATES.IDLE );
   const [currentCallNumber, setCurrentCallNumber] = useState<string>( '' );
   const [permissionsGranted, setPermissionsGranted] = useState<boolean>( false );
-  const [callListener, setCallListener] = useState<any>( null );
+  const [isAppInitialized, setIsAppInitialized] = useState<boolean>( false );
 
-  const fetchVersionName = async (): Promise<void> =>
+  // Use refs to track service state and prevent memory leaks
+  const backgroundServiceRef = useRef<boolean>( false );
+  const appStateRef = useRef( AppState.currentState );
+  const callListenerRef = useRef<any>( null );
+  const fcmTokenIntervalRef = useRef<NodeJS.Timeout | null>( null );
+  const appStateListenerRef = useRef<any>( null );
+  const isCleaningUpRef = useRef<boolean>( false );
+
+  // Version functions
+  const fetchVersionName = useCallback( async (): Promise<void> =>
   {
     try
     {
@@ -143,16 +199,14 @@ const App = observer( () =>
       console.error( 'Error fetching version name:', error );
       setVersionName( 'Unknown' );
     }
-  };
+  }, [] );
 
-  const fetchingVersionName = async (): Promise<void> =>
+  const fetchingVersionName = useCallback( async (): Promise<void> =>
   {
     setLoadingVersion( true );
-
     try
     {
       const apiUrlFromStorage = 'https://sipabacuslms.co.nz/api/';
-
       if ( apiUrlFromStorage )
       {
         const response = await fetch( apiUrlFromStorage + 'app-lts-version', {
@@ -172,6 +226,7 @@ const App = observer( () =>
             ToastAndroid.show( errorMessage, ToastAndroid.LONG );
           }
           console.error( errorMessage );
+          setApiVersionName( 'Unknown Version' );
         }
       }
     } catch ( error )
@@ -182,56 +237,68 @@ const App = observer( () =>
         ToastAndroid.show( 'An error occurred while fetching data.', ToastAndroid.LONG );
       }
       setApiVersionName( 'Unknown Version' );
+    } finally
+    {
+      setLoadingVersion( false );
     }
+  }, [] );
 
-    setLoadingVersion( false );
-  };
-
-  // Initialize FCM using your notification service
-  const initializeFCM = async (): Promise<void> =>
+  // Initialize FCM
+  const initializeFCM = useCallback( async (): Promise<void> =>
   {
     try
     {
       console.log( 'Initializing FCM...' );
-
-      // Request FCM permissions
       await requestUserPermission();
-
-      // Set up notification listeners
       await NotificationListener();
-
       console.log( 'FCM initialized successfully' );
     } catch ( error )
     {
       console.error( 'FCM initialization error:', error );
     }
-  };
+  }, [] );
 
-  // Initialize call detection using your custom service
-  const initializeCallDetectionService = async (): Promise<any> =>
+  // Initialize call detection service
+  const initializeCallDetectionService = useCallback( async (): Promise<boolean> =>
   {
     try
     {
       console.log( 'Initializing call detection service...' );
 
-      // First request permissions using CallDetectionService
+      const permissionStatus = await CallDetectionService.checkAllPermissions();
+      console.log( 'Current permission status:', permissionStatus );
+
       const hasPermissions = await CallDetectionService.requestPermissions();
-      console.log( 'Call detection permissions:', hasPermissions );
+      console.log( 'Call detection permissions granted:', hasPermissions );
 
       if ( !hasPermissions )
       {
         Alert.alert(
           'Permissions Required',
-          'This app requires phone permissions for call detection. Please grant the necessary permissions.',
+          'This app requires phone and notification permissions for call detection. Background service will not work without these permissions.',
           [
-            { text: 'OK', onPress: () => console.log( 'Permission alert dismissed' ) }
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => setPermissionsGranted( false )
+            },
+            {
+              text: 'Retry',
+              onPress: async () =>
+              {
+                const retryPermissions = await CallDetectionService.requestPermissions();
+                if ( retryPermissions )
+                {
+                  await initializeCallDetectionService();
+                }
+              }
+            }
           ]
         );
         setPermissionsGranted( false );
-        return null;
+        return false;
       }
 
-    // Start call detection
       const started = await CallDetectionService.startCallDetection();
       console.log( 'Call detection started:', started );
 
@@ -239,7 +306,13 @@ const App = observer( () =>
       {
         setPermissionsGranted( true );
 
-        // Add listener using CallDetectionService
+        // Remove existing listener if any
+        if ( callListenerRef.current )
+        {
+          CallDetectionService.removeListener( callListenerRef.current );
+        }
+
+        // Add new listener
         const listener = CallDetectionService.addListener( ( callData: any ) =>
         {
           console.log( 'Call State Changed in App:', callData );
@@ -247,141 +320,258 @@ const App = observer( () =>
           if ( callData?.state )
           {
             setCallState( callData.state );
-            console.log( 'Call state updated to:', callData.state );
           }
 
           if ( callData?.phoneNumber )
           {
             setCurrentCallNumber( callData.phoneNumber );
-            console.log( 'Phone number updated to:', callData.phoneNumber );
           } else if ( callData?.state === CALL_STATES.IDLE )
           {
             setCurrentCallNumber( '' );
           }
 
-          // Show toast for call state changes
-          const stateDescription = getCallStateDescription( callData?.state || CALL_STATES.IDLE );
-          if ( ToastAndroid?.show )
-          {
-            ToastAndroid.show(
-              `Call: ${ stateDescription }${ callData?.phoneNumber ? ` - ${ callData.phoneNumber }` : '' }`,
-              ToastAndroid.LONG
-            );
-          }
-
-
+          // Handle different call states
           switch ( callData?.state )
           {
             case CALL_STATES.RINGING:
-              console.log( 'Incoming call detected from:', callData?.phoneNumber );
               if ( callData?.phoneNumber )
               {
-                // Fetch student details for incoming call
                 fetchingPastEventsData( callData.phoneNumber, 'RINGING' );
               }
               break;
 
             case CALL_STATES.OFFHOOK:
-              console.log( 'Call answered' );
               if ( callData?.phoneNumber )
               {
-                // Fetch student details when call is answered
                 fetchingPastEventsData( callData.phoneNumber, 'OFFHOOK' );
               }
               break;
 
             case CALL_STATES.OUTGOING:
-              console.log( 'Outgoing call to:', callData?.phoneNumber );
               if ( callData?.phoneNumber )
               {
-                // Optionally fetch student details for outgoing calls
                 fetchingPastEventsData( callData.phoneNumber, 'OUTGOING' );
               }
               break;
 
             case CALL_STATES.IDLE:
-              console.log( 'Call ended' );
               setCurrentCallNumber( '' );
-              // Auto-close modal when call ends
               if ( callStore?.setModalVisible )
               {
                 callStore.setModalVisible( false );
               }
               break;
-
-            default:
-              console.log( 'Unknown call state:', callData?.state );
-              break;
           }
         } );
 
-        setCallListener( listener );
+        callListenerRef.current = listener;
         console.log( 'Call listener added successfully' );
-        return listener;
+        return true;
       } else
       {
         console.log( 'Call detection failed to start' );
         setPermissionsGranted( false );
+        return false;
       }
     } catch ( error )
     {
       console.error( 'Call detection initialization error:', error );
       setPermissionsGranted( false );
+      return false;
     }
-    return null;
-  };
+  }, [] );
 
-  // Monitor FCM token changes
+  // ===== FIXED BACKGROUND SERVICE MANAGEMENT =====
+  const startBackgroundService = useCallback( async () =>
+  {
+    try
+    {
+      if ( backgroundServiceRef.current || isCleaningUpRef.current )
+      {
+        console.log( 'Background service already running or app is cleaning up' );
+        return;
+      }
+
+      console.log( 'Starting background service...' );
+      await BackgroundService.start( backgroundTask, backgroundOptions );
+      backgroundServiceRef.current = true;
+      setIsBackgroundServiceStarted( true );
+      console.log( 'Background service started successfully' );
+    } catch ( error )
+    {
+      console.error( 'Error starting background service:', error );
+      backgroundServiceRef.current = false;
+      setIsBackgroundServiceStarted( false );
+    }
+  }, [] );
+
+  const stopBackgroundService = useCallback( async () =>
+  {
+    try
+    {
+      if ( !backgroundServiceRef.current )
+      {
+        console.log( 'Background service not running' );
+        return;
+      }
+
+      console.log( 'Stopping background service...' );
+      await BackgroundService.stop();
+      backgroundServiceRef.current = false;
+      setIsBackgroundServiceStarted( false );
+      console.log( 'Background service stopped' );
+    } catch ( error )
+    {
+      console.error( 'Error stopping background service:', error );
+    }
+  }, [] );
+
+  // ===== IMPROVED APP STATE CHANGE HANDLING =====
+  const handleAppStateChange = useCallback( async ( nextAppState: string ) =>
+  {
+    console.log( 'App state changed from', appStateRef.current, 'to', nextAppState );
+
+    if ( appStateRef.current.match( /inactive|background/ ) && nextAppState === 'active' )
+    {
+      console.log( 'App has come to the foreground!' );
+      // App came to foreground - ensure services are still running
+      if ( permissionsGranted && !backgroundServiceRef.current && !isCleaningUpRef.current )
+      {
+        console.log( 'Restarting background service on foreground' );
+        await startBackgroundService();
+      }
+    } else if ( nextAppState.match( /inactive|background/ ) )
+    {
+      console.log( 'App has gone to the background!' );
+      // App went to background - ensure background service is running
+      if ( permissionsGranted && !backgroundServiceRef.current && !isCleaningUpRef.current )
+      {
+        console.log( 'Starting background service on background' );
+        await startBackgroundService();
+      }
+    }
+
+    appStateRef.current = nextAppState;
+  }, [permissionsGranted, startBackgroundService] );
+
+  // Modal handlers
+  const handleViewDetails = useCallback( () =>
+  {
+    const { studentName } = callStore.studentDetails;
+    if ( studentName )
+    {
+      callStore.setStudentName( studentName );
+      homePageStore.setSearchQuery( studentName );
+      fetchHomePageData();
+      callStore.setModalVisible( false );
+    } else
+    {
+      ToastAndroid.show( 'Student name is empty.', ToastAndroid.LONG );
+    }
+  }, [] );
+
+  const handleCloseModal = useCallback( () =>
+  {
+    callStore.setModalVisible( false );
+  }, [] );
+
+  // ===== APP STATE CHANGE LISTENER =====
   useEffect( () =>
   {
-    const tokenInterval = setInterval( async () =>
+    if ( isAppInitialized )
     {
-      try
+      appStateListenerRef.current = AppState.addEventListener( 'change', handleAppStateChange );
+      return () =>
       {
-        const currentToken = await AsyncStorage.getItem( 'FcmToken' );
-        if ( currentToken && currentToken !== fcmToken )
+        appStateListenerRef.current?.remove();
+      };
+    }
+  }, [handleAppStateChange, isAppInitialized] );
+
+  // ===== FCM TOKEN MONITORING =====
+  useEffect( () =>
+  {
+    if ( isAppInitialized )
+    {
+      fcmTokenIntervalRef.current = setInterval( async () =>
+      {
+        try
         {
-          setFcmToken( currentToken );
-          console.log( 'FCM Token updated:', currentToken );
+          const currentToken = await AsyncStorage.getItem( 'FcmToken' );
+          if ( currentToken && currentToken !== fcmToken )
+          {
+            setFcmToken( currentToken );
+            console.log( 'FCM Token updated:', currentToken );
+          }
+        } catch ( error )
+        {
+          console.error( 'Error checking FCM token:', error );
         }
-      } catch ( error )
+      }, 5000 );
+
+      return () =>
       {
-        console.error( 'Error checking FCM token:', error );
-      }
-    }, 5000 );
+        if ( fcmTokenIntervalRef.current )
+        {
+          clearInterval( fcmTokenIntervalRef.current );
+        }
+      };
+    }
+  }, [fcmToken, isAppInitialized] );
 
-    return () => clearInterval( tokenInterval );
-  }, [fcmToken] );
-
-  // Initialize versions on mount
+  // ===== VERSION INITIALIZATION =====
   useEffect( () =>
   {
     const initializeVersions = async () =>
     {
-      await fetchVersionName();
-      await fetchingVersionName();
+      await Promise.all( [fetchVersionName(), fetchingVersionName()] );
     };
-
     initializeVersions();
-  }, [] );
+  }, [fetchVersionName, fetchingVersionName] );
 
-  // Main app initialization
+  // ===== MAIN APP INITIALIZATION - RUNS ONLY ONCE =====
   useEffect( () =>
   {
+    let isMounted = true;
+
     const initializeApp = async () =>
     {
       try
       {
+        if ( isAppInitialized ) return;
+
         console.log( 'Starting app initialization...' );
+        isCleaningUpRef.current = false;
 
         // Initialize FCM first
         await initializeFCM();
 
-        // Initialize call detection using CallDetectionService
-        await initializeCallDetectionService();
+        // Request battery optimization
+        try
+        {
+          await CallDetectionService.requestBatteryOptimization();
+        } catch ( error )
+        {
+          console.warn( 'Battery optimization request failed:', error );
+        }
+
+        // Initialize call detection
+        const callDetectionSuccess = await initializeCallDetectionService();
+
+        if ( !isMounted ) return;
+
+        // Start background service if permissions are granted
+        if ( callDetectionSuccess && permissionsGranted && !isCleaningUpRef.current )
+        {
+          await startBackgroundService();
+        }
+
+        if ( isMounted )
+        {
+          setIsAppInitialized( true );
+        }
 
         console.log( 'App initialization completed' );
-
       } catch ( error )
       {
         console.error( 'Error initializing app:', error );
@@ -390,19 +580,13 @@ const App = observer( () =>
 
     initializeApp();
 
-
     return () =>
     {
-      console.log( 'App cleanup...' );
-      if ( callListener )
-      {
-        CallDetectionService.removeListener( callListener );
-      }
-      CallDetectionService.stopCallDetection();
+      isMounted = false;
     };
-  }, [] );
+  }, [] ); // Empty dependency array - runs only once
 
-  // Check login status
+  // ===== LOGIN STATUS CHECK =====
   useEffect( () =>
   {
     const checkUserLoginStatus = async () =>
@@ -417,13 +601,11 @@ const App = observer( () =>
             authStore.isLoggedIn = true;
           } );
         }
-        if ( callStore?.setIsAppLoading )
-        {
-          callStore.setIsAppLoading( false );
-        }
       } catch ( error )
       {
         console.error( 'Error checking login status:', error );
+      } finally
+      {
         if ( callStore?.setIsAppLoading )
         {
           callStore.setIsAppLoading( false );
@@ -434,7 +616,42 @@ const App = observer( () =>
     checkUserLoginStatus();
   }, [] );
 
-  if ( ( callStore?.isAppLoading ) || loadingVersion )
+  // ===== CLEANUP ON UNMOUNT - THIS SHOULD NOT STOP BACKGROUND SERVICE =====
+  useEffect( () =>
+  {
+    return () =>
+    {
+      console.log( 'App component unmounting - performing cleanup...' );
+      isCleaningUpRef.current = true;
+
+      // Clear intervals
+      if ( fcmTokenIntervalRef.current )
+      {
+        clearInterval( fcmTokenIntervalRef.current );
+      }
+
+      // Remove app state listener
+      if ( appStateListenerRef.current )
+      {
+        appStateListenerRef.current.remove();
+      }
+
+      // Remove call listener but keep call detection running
+      if ( callListenerRef.current )
+      {
+        CallDetectionService.removeListener( callListenerRef.current );
+      }
+
+      // DO NOT STOP THESE SERVICES - THEY SHOULD CONTINUE IN BACKGROUND
+      // CallDetectionService.stopCallDetection(); // REMOVED
+      // stopBackgroundService(); // REMOVED
+
+      console.log( 'App cleanup completed - background services continue running' );
+    };
+  }, [] );
+
+  // Loading state
+  if ( callStore?.isAppLoading || loadingVersion )
   {
     return <LoaderComponent />;
   }
@@ -448,24 +665,16 @@ const App = observer( () =>
       ) : authStore.isLoggedIn ? (
         <MainScreens />
       ) : (
-        <AuthStack.Navigator
-          screenOptions={{
-            headerShown: false,
-          }}>
+            <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Login" component={LoginScreen} />
         </AuthStack.Navigator>
       )}
-
-
 
       <Modal
         animationType="slide"
         transparent={true}
         visible={callStore.modalVisible}
-        onRequestClose={() =>
-        {
-          callStore.setModalVisible( false );
-        }}>
+        onRequestClose={handleCloseModal}>
         <View
           style={[
             styles.modalContainer,
@@ -474,10 +683,7 @@ const App = observer( () =>
           <View
             style={{
               backgroundColor: 'white',
-              borderTopLeftRadius: 8,
-              borderTopRightRadius: 8,
-              borderBottomRightRadius: 8,
-              borderBottomLeftRadius: 8,
+              borderRadius: 8,
               display: 'flex',
               padding: 0,
               width: '90%',
@@ -497,19 +703,14 @@ const App = observer( () =>
               Sip Abacus LMS Caller
             </Text>
 
-            <View
-              style={{
-                padding: 20,
-                paddingBottom: 0,
-              }}>
+            <View style={{ padding: 20, paddingBottom: 0 }}>
               <View
                 style={{
                   display: 'flex',
                   flexDirection: 'row',
                   flexWrap: 'wrap',
                 }}>
-                <Text
-                  style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 10 }}>
+                <Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 10 }}>
                   Student Name:
                 </Text>
                 <Text
@@ -541,12 +742,9 @@ const App = observer( () =>
                     width: '60%',
                   }}>
                   {callStore.studentDetails.parentName}
-
                 </Text>
               </View>
             </View>
-
-
 
             <View
               style={{
@@ -562,42 +760,18 @@ const App = observer( () =>
                   styles.viewDetailsButton,
                   { width: '48%', alignItems: 'center' },
                 ]}
-                onPress={() =>
-                {
-                  const { studentName } = callStore.studentDetails;
-                  if ( studentName )
-                  {
-                    callStore.setStudentName( studentName );
-                    homePageStore.setSearchQuery( studentName );
-                    fetchHomePageData();
-                    callStore.setModalVisible( false );
-                  } else
-                  {
-                    ToastAndroid.show(
-                      'Student name is empty.',
-                      ToastAndroid.LONG,
-                    );
-                  }
-                }}>
-                <Text
-                  style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }}>
+                onPress={handleViewDetails}>
+                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }}>
                   View Details
                 </Text>
               </Pressable>
               <Pressable
                 style={[
                   styles.closeButton,
-                  {
-                    width: '48%',
-                    alignItems: 'center',
-                  },
+                  { width: '48%', alignItems: 'center' },
                 ]}
-                onPress={() =>
-                {
-                  callStore.setModalVisible( false );
-                }}>
-                <Text
-                  style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }}>
+                onPress={handleCloseModal}>
+                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }}>
                   Close
                 </Text>
               </Pressable>

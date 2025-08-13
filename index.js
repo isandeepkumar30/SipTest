@@ -60,7 +60,7 @@ const DisplayNotification = async remoteMessage =>
         showTimestamp: true,
         timestamp: Date.now(),
         smallIcon: 'ic_launcher', // Make sure you have this icon
-        largeIcon: remoteMessage.notification?.android?.imageUrl,
+        largeIcon: 'ic_launcher',
         pressAction: {
           id: 'default',
         },

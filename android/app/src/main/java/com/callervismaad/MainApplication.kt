@@ -1,5 +1,6 @@
 package com.callervismaad
 
+
 import android.app.Application
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
@@ -9,6 +10,7 @@ import com.facebook.react.ReactNativeHost
 import com.facebook.react.ReactPackage
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
+import com.asterinet.react.bgactions.BackgroundActionsPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -17,7 +19,8 @@ class MainApplication : Application(), ReactApplication {
         override fun getPackages(): List<ReactPackage> =
             PackageList(this).packages.apply {
               // Add your custom package here
-              add(CallDetectionPackage())
+           add(CallDetectionPackage())
+add(BackgroundActionsPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

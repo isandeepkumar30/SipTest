@@ -1,4 +1,5 @@
 {
   "name": "CallerVismaad",
-  "displayName": "CallerVismaad"
+  "displayName": "CallerVismaad",
+  "plugins": ["@notifee/react-native"]
 }
