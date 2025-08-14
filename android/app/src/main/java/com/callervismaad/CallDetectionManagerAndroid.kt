@@ -97,6 +97,102 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
         promise.resolve(programmaticReceiver != null)
     }
     
+    // Notification tracking to prevent duplicates
+    private var lastNotificationKey: String? = null
+    private var lastNotificationTime: Long = 0
+    
+    // New method to show notification with student info
+    @ReactMethod
+    fun showNotificationWithStudentInfo(callState: String, phoneNumber: String?, studentName: String?, parentName: String?) {
+        try {
+            Log.d(TAG, "Request to show notification: $callState, $phoneNumber, $studentName, $parentName")
+            
+            // Create unique key for this notification
+            val notificationKey = "$callState-$phoneNumber-$studentName-$parentName"
+            val currentTime = System.currentTimeMillis()
+            
+            // Check if this is a duplicate notification within 2 seconds
+            if (lastNotificationKey == notificationKey && (currentTime - lastNotificationTime) < 2000) {
+                Log.d(TAG, "Skipping duplicate notification within 2 seconds")
+                return
+            }
+            
+            // Update last notification tracking
+            lastNotificationKey = notificationKey
+            lastNotificationTime = currentTime
+            
+            Log.d(TAG, "Showing notification with student info: $callState, $phoneNumber, $studentName, $parentName")
+            
+            val notificationManager = reactApplicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            
+            // Create intent to open the app
+            val launchIntent = reactApplicationContext.packageManager.getLaunchIntentForPackage(reactApplicationContext.packageName)
+            launchIntent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            
+            val pendingIntent = PendingIntent.getActivity(
+                reactApplicationContext,
+                0,
+                launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            // Create notification content based on available data
+            val (title, body) = when (callState) {
+                "RINGING" -> {
+                    if (!studentName.isNullOrEmpty() && !parentName.isNullOrEmpty()) {
+                        "Incoming Call - $studentName" to "Parent: $parentName"
+                    } else if (!studentName.isNullOrEmpty()) {
+                        "Incoming Call - $studentName" to "Phone: ${phoneNumber ?: "Unknown"}"
+                    } else {
+                        "Incoming Call Detected" to "Call from: ${phoneNumber ?: "Unknown"}"
+                    }
+                }
+                "OUTGOING" -> {
+                    if (!studentName.isNullOrEmpty() && !parentName.isNullOrEmpty()) {
+                        "Outgoing Call - $studentName" to "Parent: $parentName"
+                    } else if (!studentName.isNullOrEmpty()) {
+                        "Outgoing Call - $studentName" to "Phone: ${phoneNumber ?: "Unknown"}"
+                    } else {
+                        "Outgoing Call Detected" to "Calling: ${phoneNumber ?: "Unknown"}"
+                    }
+                }
+                "OFFHOOK" -> {
+                    if (!studentName.isNullOrEmpty() && !parentName.isNullOrEmpty()) {
+                        "Call Active - $studentName" to "Parent: $parentName"
+                    } else if (!studentName.isNullOrEmpty()) {
+                        "Call Active - $studentName" to "Phone: ${phoneNumber ?: "Unknown"}"
+                    } else {
+                        "Call Active" to "Call with: ${phoneNumber ?: "Unknown"}"
+                    }
+                }
+                else -> {
+                    if (!studentName.isNullOrEmpty()) {
+                        "Call Detected - $studentName" to "Phone: ${phoneNumber ?: "Unknown"}"
+                    } else {
+                        "Call Detected" to "Phone: ${phoneNumber ?: "Unknown"}"
+                    }
+                }
+            }
+
+            val notification = NotificationCompat.Builder(reactApplicationContext, CHANNEL_ID)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_CALL)
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent)
+                .setDefaults(Notification.DEFAULT_ALL)
+                .build()
+
+            notificationManager.notify(NOTIFICATION_ID, notification)
+            Log.d(TAG, "Notification displayed: $title - $body")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing notification with student info: ${e.message}", e)
+        }
+    }
+    
     private fun processPendingEvents() {
         if (pendingEvents.isNotEmpty()) {
             Log.d(TAG, "Processing ${pendingEvents.size} pending events")
@@ -137,7 +233,7 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
                 .emit(eventName, params)
         } catch (e: Exception) {
             Log.e(TAG, "Error sending event to JS: ${e.message}", e)
-            // If we can't send to JS, show notification instead
+            // If we can't send to JS, show fallback notification
             showFallbackNotification(params)
         }
     }
@@ -148,38 +244,8 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
             val phoneNumber = params?.getString("phoneNumber") ?: "Unknown"
             
             if (state == "RINGING" || state == "OUTGOING") {
-                val notificationManager = reactApplicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                
-                // Create intent to open the app
-                val launchIntent = reactApplicationContext.packageManager.getLaunchIntentForPackage(reactApplicationContext.packageName)
-                launchIntent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                
-                val pendingIntent = PendingIntent.getActivity(
-                    reactApplicationContext,
-                    0,
-                    launchIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-
-                val (title, body) = when (state) {
-                    "RINGING" -> "Incoming Call" to "From: $phoneNumber"
-                    "OUTGOING" -> "Outgoing Call" to "To: $phoneNumber"
-                    else -> "Call Detected" to "Number: $phoneNumber"
-                }
-
-                val notification = NotificationCompat.Builder(reactApplicationContext, CHANNEL_ID)
-                    .setContentTitle(title)
-                    .setContentText(body)
-                    .setSmallIcon(R.mipmap.ic_launcher)
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .setCategory(NotificationCompat.CATEGORY_CALL)
-                    .setAutoCancel(true)
-                    .setContentIntent(pendingIntent)
-                    .setDefaults(Notification.DEFAULT_ALL)
-                    .build()
-
-                notificationManager.notify(NOTIFICATION_ID, notification)
-                Log.d(TAG, "Fallback notification displayed: $title - $body")
+                // Show basic notification as fallback
+                showNotificationWithStudentInfo(state, phoneNumber, null, null)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error showing fallback notification: ${e.message}", e)

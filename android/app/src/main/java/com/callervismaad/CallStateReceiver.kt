@@ -49,10 +49,7 @@ class CallStateReceiver : BroadcastReceiver() {
                 // Forward to CallDetectionManager if available
                 forwardToReactNative(context, callState, phoneNumber)
                 
-                // Show notification when call is detected (especially when app is closed)
-                if (context != null && (callState == CALL_STATE_RINGING || callState == CALL_STATE_OUTGOING)) {
-                    showCallNotification(context, callState, phoneNumber)
-                }
+                // Note: Notification will be shown from React Native side after API call
             }
 
             Intent.ACTION_NEW_OUTGOING_CALL -> {
@@ -62,10 +59,7 @@ class CallStateReceiver : BroadcastReceiver() {
                 // Forward to CallDetectionManager if available
                 forwardToReactNative(context, CALL_STATE_OUTGOING, phoneNumber)
                 
-                // Show notification for outgoing call
-                if (context != null) {
-                    showCallNotification(context, CALL_STATE_OUTGOING, phoneNumber)
-                }
+                // Note: Notification will be shown from React Native side after API call
             }
 
             else -> {
@@ -91,7 +85,8 @@ class CallStateReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun showCallNotification(context: Context, callState: String, phoneNumber: String?) {
+    // Add method to show notification with student details - called from React Native
+    fun showCallNotificationWithStudentInfo(context: Context, callState: String, phoneNumber: String?, studentName: String?, parentName: String?) {
         try {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             
@@ -109,12 +104,42 @@ class CallStateReceiver : BroadcastReceiver() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-         
+            // Create notification content based on available data
             val (title, body) = when (callState) {
-                CALL_STATE_RINGING -> "Incoming Call Detected" to "Call from: ${phoneNumber ?: "Unknown"}"
-                CALL_STATE_OUTGOING -> "Outgoing Call Detected" to "Calling: ${phoneNumber ?: "Unknown"}"
-                CALL_STATE_OFFHOOK -> "Call Active" to "Call with: ${phoneNumber ?: "Unknown"}"
-                else -> "Call Detected" to "Phone: ${phoneNumber ?: "Unknown"}"
+                CALL_STATE_RINGING -> {
+                    if (!studentName.isNullOrEmpty() && !parentName.isNullOrEmpty()) {
+                        "Incoming Call - ${studentName}" to "Parent: ${parentName}"
+                    } else if (!studentName.isNullOrEmpty()) {
+                        "Incoming Call - ${studentName}" to "Phone: ${phoneNumber ?: "Unknown"}"
+                    } else {
+                        "Incoming Call Detected" to "Call from: ${phoneNumber ?: "Unknown"}"
+                    }
+                }
+                CALL_STATE_OUTGOING -> {
+                    if (!studentName.isNullOrEmpty() && !parentName.isNullOrEmpty()) {
+                        "Outgoing Call - ${studentName}" to "Parent: ${parentName}"
+                    } else if (!studentName.isNullOrEmpty()) {
+                        "Outgoing Call - ${studentName}" to "Phone: ${phoneNumber ?: "Unknown"}"
+                    } else {
+                        "Outgoing Call Detected" to "Calling: ${phoneNumber ?: "Unknown"}"
+                    }
+                }
+                CALL_STATE_OFFHOOK -> {
+                    if (!studentName.isNullOrEmpty() && !parentName.isNullOrEmpty()) {
+                        "Call Active - ${studentName}" to "Parent: ${parentName}"
+                    } else if (!studentName.isNullOrEmpty()) {
+                        "Call Active - ${studentName}" to "Phone: ${phoneNumber ?: "Unknown"}"
+                    } else {
+                        "Call Active" to "Call with: ${phoneNumber ?: "Unknown"}"
+                    }
+                }
+                else -> {
+                    if (!studentName.isNullOrEmpty()) {
+                        "Call Detected - ${studentName}" to "Phone: ${phoneNumber ?: "Unknown"}"
+                    } else {
+                        "Call Detected" to "Phone: ${phoneNumber ?: "Unknown"}"
+                    }
+                }
             }
 
             // Build notification

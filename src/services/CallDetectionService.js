@@ -262,6 +262,31 @@ class CallDetectionService
         return true;
     }
 
+    // NEW: Method to show notification with student info
+    showNotificationWithStudentInfo( callState, phoneNumber, studentName, parentName )
+    {
+        console.log( 'Showing notification with student info:', { callState, phoneNumber, studentName, parentName } );
+
+        if ( !CallDetectionManager || !CallDetectionManager.showNotificationWithStudentInfo )
+        {
+            console.warn( 'showNotificationWithStudentInfo method not available' );
+            return;
+        }
+
+        try
+        {
+            CallDetectionManager.showNotificationWithStudentInfo(
+                callState,
+                phoneNumber || '',
+                studentName || '',
+                parentName || ''
+            );
+        } catch ( error )
+        {
+            console.error( 'Error showing notification with student info:', error );
+        }
+    }
+
     addTestListener()
     {
         if ( callDetectionEmitter )

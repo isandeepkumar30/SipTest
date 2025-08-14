@@ -243,6 +243,129 @@ const App = observer( () =>
     }
   }, [] );
 
+
+  const callStateManager = {
+    lastProcessedCall: null,
+
+    shouldProcessCall ( state, phoneNumber )
+    {
+      const currentCall = `${ state }-${ phoneNumber }`;
+      const now = Date.now();
+
+      // If this is the same call as last time and within 1 second, skip it
+      if ( this.lastProcessedCall )
+      {
+        const timeDiff = now - this.lastProcessedCall.timestamp;
+        if ( this.lastProcessedCall.call === currentCall && timeDiff < 1000 )
+        {
+          console.log( 'Skipping duplicate call processing:', currentCall );
+          return false;
+        }
+      }
+
+      // Record this call
+      this.lastProcessedCall = {
+        call: currentCall,
+        timestamp: now
+      };
+
+      return true;
+    }
+  };
+  const listener = CallDetectionService.addListener( ( callData: any ) =>
+  {
+    console.log( '=== CALL STATE CHANGE EVENT ===' );
+    console.log( 'Call State Changed in App:', callData );
+    console.log( 'Event timestamp:', new Date().toISOString() );
+
+    const state = callData?.state;
+    const phoneNumber = callData?.phoneNumber;
+
+    // Check if we should process this call event
+    if ( !callStateManager.shouldProcessCall( state, phoneNumber ) )
+    {
+      console.log( 'Skipping duplicate call event processing' );
+      return;
+    }
+
+    if ( state )
+    {
+      console.log( 'Setting call state to:', state );
+      setCallState( state );
+    }
+
+    if ( phoneNumber )
+    {
+      console.log( 'Setting phone number to:', phoneNumber );
+      setCurrentCallNumber( phoneNumber );
+    } else if ( state === CALL_STATES.IDLE )
+    {
+      console.log( 'Clearing phone number (IDLE state)' );
+      setCurrentCallNumber( '' );
+    }
+
+    // Handle different call states with priority logic
+    switch ( state )
+    {
+      case CALL_STATES.RINGING:
+        console.log( '=== HANDLING RINGING STATE ===' );
+        if ( phoneNumber )
+        {
+          console.log( 'Processing RINGING call for:', phoneNumber );
+          // RINGING is highest priority - always process
+          fetchingPastEventsData( phoneNumber, 'RINGING' );
+        } else
+        {
+          console.log( 'No phone number provided for RINGING state' );
+        }
+        break;
+
+      case CALL_STATES.OUTGOING:
+        console.log( '=== HANDLING OUTGOING STATE ===' );
+        if ( phoneNumber )
+        {
+          console.log( 'Processing OUTGOING call for:', phoneNumber );
+          // OUTGOING is second priority - always process
+          fetchingPastEventsData( phoneNumber, 'OUTGOING' );
+        } else
+        {
+          console.log( 'No phone number provided for OUTGOING state' );
+        }
+        break;
+
+      case CALL_STATES.OFFHOOK:
+        console.log( '=== HANDLING OFFHOOK STATE ===' );
+        if ( phoneNumber )
+        {
+          console.log( 'Processing OFFHOOK call for:', phoneNumber );
+          // OFFHOOK is lower priority - only process if we haven't already processed this number
+          fetchingPastEventsData( phoneNumber, 'OFFHOOK' );
+        } else
+        {
+          console.log( 'No phone number provided for OFFHOOK state' );
+        }
+        break;
+
+      case CALL_STATES.IDLE:
+        console.log( '=== HANDLING IDLE STATE ===' );
+        setCurrentCallNumber( '' );
+        if ( callStore?.setModalVisible )
+        {
+          console.log( 'Closing modal for IDLE state' );
+          callStore.setModalVisible( false );
+        }
+        // Reset call state manager when call ends
+        callStateManager.lastProcessedCall = null;
+        break;
+
+      default:
+        console.log( '=== UNKNOWN CALL STATE ===' );
+        console.log( 'Unknown call state received:', state );
+        break;
+    }
+
+    console.log( '=== END CALL STATE CHANGE EVENT ===' );
+  } );
   // Initialize FCM
   const initializeFCM = useCallback( async (): Promise<void> =>
   {
@@ -330,12 +453,13 @@ const App = observer( () =>
             setCurrentCallNumber( '' );
           }
 
-          // Handle different call states
+          // Handle different call states - this will now show notifications with student info
           switch ( callData?.state )
           {
             case CALL_STATES.RINGING:
               if ( callData?.phoneNumber )
               {
+                // This function now handles notifications internally
                 fetchingPastEventsData( callData.phoneNumber, 'RINGING' );
               }
               break;
@@ -343,6 +467,7 @@ const App = observer( () =>
             case CALL_STATES.OFFHOOK:
               if ( callData?.phoneNumber )
               {
+                // This function now handles notifications internally
                 fetchingPastEventsData( callData.phoneNumber, 'OFFHOOK' );
               }
               break;
@@ -350,6 +475,7 @@ const App = observer( () =>
             case CALL_STATES.OUTGOING:
               if ( callData?.phoneNumber )
               {
+                // This function now handles notifications internally
                 fetchingPastEventsData( callData.phoneNumber, 'OUTGOING' );
               }
               break;
