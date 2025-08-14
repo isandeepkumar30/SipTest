@@ -23,55 +23,55 @@ notifee.onBackgroundEvent( async ( { type, detail } ) =>
 } );
 
 // Handle background messages from FCM
-messaging().setBackgroundMessageHandler( async remoteMessage =>
-{
-  console.log( 'FCM Message handled in the background!', remoteMessage );
-  await DisplayNotification( remoteMessage );
-} );
+// messaging().setBackgroundMessageHandler( async remoteMessage =>
+// {
+//   console.log( 'FCM Message handled in the background!', remoteMessage );
+//   await DisplayNotification( remoteMessage );
+// } );
 
 // Display notification function
-const DisplayNotification = async remoteMessage =>
-{
-  try
-  {
-    console.log( 'Displaying notification for:', remoteMessage );
+// const DisplayNotification = async remoteMessage =>
+// {
+//   try
+//   {
+//     console.log( 'Displaying notification for:', remoteMessage );
 
-    const channelId = await notifee.createChannel( {
-      id: 'default',
-      name: 'Default Channel',
-      importance: AndroidImportance.HIGH,
-      actions: [
-        {
-          title: 'Mark as Read',
-          pressAction: {
-            id: 'read',
-          },
-        },
-      ],
-    } );
+//     const channelId = await notifee.createChannel( {
+//       id: 'default',
+//       name: 'Default Channel',
+//       importance: AndroidImportance.HIGH,
+//       actions: [
+//         {
+//           title: 'Mark as Read',
+//           pressAction: {
+//             id: 'read',
+//           },
+//         },
+//       ],
+//     } );
 
-    await notifee.displayNotification( {
-      title: remoteMessage.data?.title || remoteMessage.notification?.title || 'New Message',
-      body: remoteMessage.data?.body || remoteMessage.notification?.body || 'You have a new message',
-      android: {
-        channelId,
-        color: AndroidColor.RED,
-        importance: AndroidImportance.HIGH,
-        showTimestamp: true,
-        timestamp: Date.now(),
-        smallIcon: 'ic_launcher', // Make sure you have this icon
-        largeIcon: 'ic_launcher',
-        pressAction: {
-          id: 'default',
-        },
-      },
-      data: remoteMessage.data,
-    } );
-  } catch ( error )
-  {
-    console.error( 'Error displaying notification:', error );
-  }
-};
+//     // await notifee.displayNotification( {
+//     //   // title: remoteMessage.data?.title || remoteMessage.notification?.title || 'New Message',
+//     //   // body: remoteMessage.data?.body || remoteMessage.notification?.body || 'You have a new message',
+//     //   android: {
+//     //     channelId,
+//     //     color: AndroidColor.RED,
+//     //     importance: AndroidImportance.HIGH,
+//     //     showTimestamp: true,
+//     //     timestamp: Date.now(),
+//     //     smallIcon: 'ic_launcher', // Make sure you have this icon
+//     //     largeIcon: 'ic_launcher',
+//     //     pressAction: {
+//     //       id: 'default',
+//     //     },
+//     //   },
+//     //   // data: remoteMessage.data,
+//     // } );
+//   } catch ( error )
+//   {
+//     console.error( 'Error displaying notification:', error );
+//   }
+// };
 
 // Register the main application component
 AppRegistry.registerComponent( appName, () => App );

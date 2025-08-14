@@ -102,22 +102,7 @@ const backgroundOptions = {
   },
 };
 
-const getCallStateDescription = ( state: string ): string =>
-{
-  switch ( state )
-  {
-    case CALL_STATES.IDLE:
-      return 'No Call';
-    case CALL_STATES.RINGING:
-      return 'Incoming Call';
-    case CALL_STATES.OFFHOOK:
-      return 'Call Active';
-    case CALL_STATES.OUTGOING:
-      return 'Outgoing Call';
-    default:
-      return 'Unknown';
-  }
-};
+
 
 const MainStack = createNativeStackNavigator();
 const AuthStack = createNativeStackNavigator();
