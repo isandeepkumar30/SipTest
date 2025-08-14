@@ -90,7 +90,7 @@ const backgroundTask = async ( taskDataArguments: any ) =>
 const backgroundOptions = {
   taskName: 'CallDetectionService',
   taskTitle: 'Call Detection Active',
-  taskDesc: 'Monitoring incoming calls for student information',
+  taskDesc: 'Monitoring calls for student information',
   taskIcon: {
     name: 'ic_launcher',
     type: 'mipmap',

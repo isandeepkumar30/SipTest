@@ -352,7 +352,7 @@ class CallDetectionService
         console.log( 'All listeners removed' );
     }
 
-    // NEW: Check if service is active
+
     async isActive()
     {
         try
@@ -369,7 +369,15 @@ class CallDetectionService
         }
     }
 
-    // Debug method to check service status
+    async testNotification()
+    {
+        if ( CallDetectionManager && CallDetectionManager.testNotification )
+        {
+            return await CallDetectionManager.testNotification();
+        }
+        return false;
+    }
+
     getStatus()
     {
         return {

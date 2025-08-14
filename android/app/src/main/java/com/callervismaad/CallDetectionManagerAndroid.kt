@@ -1,11 +1,17 @@
 package com.callervismaad
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.telephony.TelephonyManager
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 
@@ -15,6 +21,8 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
     
     companion object {
         private const val TAG = "CallDetectionManager"
+        private const val CHANNEL_ID = "call_detection_rn_channel"
+        private const val NOTIFICATION_ID = 1002
         private var instance: CallDetectionManagerAndroid? = null
         private val pendingEvents = mutableListOf<PendingCallEvent>()
         
@@ -30,6 +38,8 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
     
     init {
         instance = this
+        // Create notification channel when manager is initialized
+        createNotificationChannel()
         // Process any pending events that occurred before this manager was initialized
         processPendingEvents()
     }
@@ -82,6 +92,11 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
         }
     }
     
+    @ReactMethod
+    fun isCallDetectionActive(promise: Promise) {
+        promise.resolve(programmaticReceiver != null)
+    }
+    
     private fun processPendingEvents() {
         if (pendingEvents.isNotEmpty()) {
             Log.d(TAG, "Processing ${pendingEvents.size} pending events")
@@ -89,6 +104,28 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
                 onCallStateChanged(event.state, event.phoneNumber)
             }
             pendingEvents.clear()
+        }
+    }
+    
+    private fun createNotificationChannel() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val notificationManager = reactApplicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "Call Detection Events",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Notifications for call detection when app is in foreground"
+                    enableLights(true)
+                    enableVibration(true)
+                    setShowBadge(true)
+                }
+                notificationManager.createNotificationChannel(channel)
+                Log.d(TAG, "Notification channel created")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating notification channel: ${e.message}", e)
         }
     }
     
@@ -100,6 +137,52 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
                 .emit(eventName, params)
         } catch (e: Exception) {
             Log.e(TAG, "Error sending event to JS: ${e.message}", e)
+            // If we can't send to JS, show notification instead
+            showFallbackNotification(params)
+        }
+    }
+    
+    private fun showFallbackNotification(params: WritableMap?) {
+        try {
+            val state = params?.getString("state") ?: "UNKNOWN"
+            val phoneNumber = params?.getString("phoneNumber") ?: "Unknown"
+            
+            if (state == "RINGING" || state == "OUTGOING") {
+                val notificationManager = reactApplicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                
+                // Create intent to open the app
+                val launchIntent = reactApplicationContext.packageManager.getLaunchIntentForPackage(reactApplicationContext.packageName)
+                launchIntent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                
+                val pendingIntent = PendingIntent.getActivity(
+                    reactApplicationContext,
+                    0,
+                    launchIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                val (title, body) = when (state) {
+                    "RINGING" -> "Incoming Call" to "From: $phoneNumber"
+                    "OUTGOING" -> "Outgoing Call" to "To: $phoneNumber"
+                    else -> "Call Detected" to "Number: $phoneNumber"
+                }
+
+                val notification = NotificationCompat.Builder(reactApplicationContext, CHANNEL_ID)
+                    .setContentTitle(title)
+                    .setContentText(body)
+                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setCategory(NotificationCompat.CATEGORY_CALL)
+                    .setAutoCancel(true)
+                    .setContentIntent(pendingIntent)
+                    .setDefaults(Notification.DEFAULT_ALL)
+                    .build()
+
+                notificationManager.notify(NOTIFICATION_ID, notification)
+                Log.d(TAG, "Fallback notification displayed: $title - $body")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing fallback notification: ${e.message}", e)
         }
     }
     
