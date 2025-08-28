@@ -1,5 +1,3 @@
-// File Location: src/services/CallDetectionService.js
-
 import { NativeModules, NativeEventEmitter, PermissionsAndroid, Platform, Alert, Linking } from 'react-native';
 
 const { CallDetectionManager } = NativeModules;
@@ -37,13 +35,11 @@ class CallDetectionService
                     postNotifications: await PermissionsAndroid.check( PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS ),
                     manageOwnCalls: await PermissionsAndroid.check( 'android.permission.MANAGE_OWN_CALLS' ),
                     foregroundServicePhoneCall: await PermissionsAndroid.check( 'android.permission.FOREGROUND_SERVICE_PHONE_CALL' ),
-                    // NEW: Check battery optimization permission
                     batteryOptimization: await PermissionsAndroid.check( 'android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS' )
                 };
 
                 console.log( 'Current permissions:', currentPermissions );
 
-                // Check if all permissions are already granted
                 const allAlreadyGranted = Object.values( currentPermissions ).every( permission => permission );
 
                 if ( allAlreadyGranted )
@@ -51,19 +47,16 @@ class CallDetectionService
                     console.log( 'All permissions already granted' );
                     this.permissionsChecked = true;
                     this.hasPermissions = true;
-
-                    // Still check battery optimization separately
                     await this.requestBatteryOptimization();
                     return true;
                 }
 
-                // Request multiple permissions
                 const permissionsToRequest = [
                     PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
                     PermissionsAndroid.PERMISSIONS.PROCESS_OUTGOING_CALLS,
                     PermissionsAndroid.PERMISSIONS.READ_CALL_LOG,
                     PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-                    'android.permission.MANAGE_OWN_CALLS', // <-- add this
+                    'android.permission.MANAGE_OWN_CALLS',
                     'android.permission.FOREGROUND_SERVICE_PHONE_CALL'
                 ];
 
@@ -85,11 +78,9 @@ class CallDetectionService
 
                 if ( allGranted )
                 {
-                    // Request battery optimization separately
                     await this.requestBatteryOptimization();
                 } else
                 {
-                    // Show which permissions were denied
                     this.showPermissionDeniedAlert( granted );
                 }
 
@@ -108,7 +99,6 @@ class CallDetectionService
         return true;
     }
 
-    // NEW: Request battery optimization exemption
     async requestBatteryOptimization()
     {
         if ( this.batteryOptimizationChecked )
@@ -120,7 +110,6 @@ class CallDetectionService
         {
             console.log( 'Requesting battery optimization exemption...' );
 
-            // First try to request the permission
             const batteryGranted = await PermissionsAndroid.request(
                 'android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
                 {
@@ -140,7 +129,6 @@ class CallDetectionService
                 return true;
             }
 
-            // If permission not granted, show alert to manually disable
             Alert.alert(
                 'Battery Optimization Required',
                 'For reliable background call detection, please disable battery optimization for this app in Settings.',
@@ -169,7 +157,6 @@ class CallDetectionService
         }
     }
 
-    // NEW: Show detailed permission denied alert
     showPermissionDeniedAlert( granted )
     {
         const deniedPermissions = [];
@@ -262,7 +249,7 @@ class CallDetectionService
         return true;
     }
 
-    // NEW: Method to show notification with student info
+    // Method to show notification with student info
     showNotificationWithStudentInfo( callState, phoneNumber, studentName, parentName )
     {
         console.log( 'Showing notification with student info:', { callState, phoneNumber, studentName, parentName } );
@@ -284,6 +271,65 @@ class CallDetectionService
         } catch ( error )
         {
             console.error( 'Error showing notification with student info:', error );
+        }
+    }
+
+    // NEW: Clear notifications for specific phone number
+    clearNotificationsForNumber( phoneNumber )
+    {
+        console.log( 'Clearing notifications for number:', phoneNumber );
+
+        if ( !CallDetectionManager || !CallDetectionManager.clearNotificationsForNumber )
+        {
+            console.warn( 'clearNotificationsForNumber method not available' );
+            return;
+        }
+
+        try
+        {
+            CallDetectionManager.clearNotificationsForNumber( phoneNumber || '' );
+        } catch ( error )
+        {
+            console.error( 'Error clearing notifications for number:', error );
+        }
+    }
+
+    // NEW: Clear all call notifications
+    clearAllCallNotifications()
+    {
+        console.log( 'Clearing all call notifications' );
+
+        if ( !CallDetectionManager || !CallDetectionManager.clearAllCallNotifications )
+        {
+            console.warn( 'clearAllCallNotifications method not available' );
+            return;
+        }
+
+        try
+        {
+            CallDetectionManager.clearAllCallNotifications();
+        } catch ( error )
+        {
+            console.error( 'Error clearing all notifications:', error );
+        }
+    }
+
+    // NEW: Get active notification count
+    async getActiveNotificationCount()
+    {
+        if ( !CallDetectionManager || !CallDetectionManager.getActiveNotificationCount )
+        {
+            console.warn( 'getActiveNotificationCount method not available' );
+            return 0;
+        }
+
+        try
+        {
+            return await CallDetectionManager.getActiveNotificationCount();
+        } catch ( error )
+        {
+            console.error( 'Error getting active notification count:', error );
+            return 0;
         }
     }
 
@@ -377,7 +423,6 @@ class CallDetectionService
         console.log( 'All listeners removed' );
     }
 
-
     async isActive()
     {
         try
@@ -416,7 +461,6 @@ class CallDetectionService
         };
     }
 
-    // Method to reset permission status (useful for testing or when permissions change)
     resetPermissions()
     {
         this.permissionsChecked = false;
@@ -424,7 +468,6 @@ class CallDetectionService
         this.batteryOptimizationChecked = false;
     }
 
-    // NEW: Method to check all permissions status
     async checkAllPermissions()
     {
         if ( Platform.OS !== 'android' )

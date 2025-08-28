@@ -53,7 +53,7 @@
         </activity>
 
         <!-- Static receiver declaration for call detection -->
-        <receiver 
+        <!-- <receiver 
             android:name=".CallStateReceiver"
             android:enabled="true"
             android:exported="false">
@@ -61,7 +61,7 @@
                 <action android:name="android.intent.action.PHONE_STATE" />
                 <action android:name="android.intent.action.NEW_OUTGOING_CALL" />
             </intent-filter>
-        </receiver>
+        </receiver> -->
 
         <!-- Push Notification Configuration -->
         <meta-data android:name="com.dieam.reactnativepushnotification.notification_foreground" android:value="true"/>
