@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { action, makeObservable, observable } from 'mobx';
 import { ToastAndroid } from 'react-native';
 import CallDetectionService from '../../services/CallDetectionService';
+import { clearObserving } from 'mobx/dist/internal';
 
 class CallStore
 {
@@ -70,14 +71,12 @@ class NotificationManager
     if ( !existingCall )
     {
       // First call from this number - always process
-      console.log( `First call detected from ${ normalizedNumber }: ${ event }` );
       return true;
     }
 
     // Check if API call is already in progress for this number
     if ( existingCall.apiInProgress )
     {
-      console.log( `API call already in progress for ${ normalizedNumber }` );
       return false;
     }
 
@@ -87,14 +86,12 @@ class NotificationManager
     // Skip if same event within 2 seconds (debounce rapid duplicates)
     if ( isSameEvent && timeDiff < 2000 )
     {
-      console.log( `Skipping duplicate ${ event } event for ${ normalizedNumber } (within 2 seconds)` );
       return false;
     }
 
     // For different events, allow processing but with shorter debounce for rapid state changes
     if ( !isSameEvent && timeDiff < 500 )
     {
-      console.log( `Skipping rapid state change for ${ normalizedNumber } (within 500ms)` );
       return false;
     }
 
@@ -102,7 +99,7 @@ class NotificationManager
   }
 
   // Normalize phone number for consistent tracking
-  normalizePhoneNumber ( phoneNumber )
+  normalizePhoneNumber ( phoneNumber: any )
   {
     if ( !phoneNumber || phoneNumber === '' )
     {
@@ -114,7 +111,7 @@ class NotificationManager
   }
 
   // Mark API call as in progress for this phone number
-  markApiInProgress ( phoneNumber, event )
+  markApiInProgress ( phoneNumber: any, event: any )
   {
     const normalizedNumber = this.normalizePhoneNumber( phoneNumber );
     const currentTime = Date.now();
@@ -124,12 +121,10 @@ class NotificationManager
       lastTimestamp: currentTime,
       apiInProgress: true
     } );
-
-    console.log( `Marked API in progress for ${ normalizedNumber }: ${ event }` );
   }
 
   // Mark API call as completed for this phone number
-  markApiCompleted ( phoneNumber, event )
+  markApiCompleted ( phoneNumber: any, event: any )
   {
     const normalizedNumber = this.normalizePhoneNumber( phoneNumber );
     const existingCall = this.callHistory.get( normalizedNumber );
@@ -141,35 +136,17 @@ class NotificationManager
         apiInProgress: false
       } );
     }
-
-    console.log( `Marked API completed for ${ normalizedNumber }: ${ event }` );
   }
 
   // Show notification with enhanced logic
-  showNotification ( event, phoneNumber, studentName, parentName )
+  showNotification ( event: any, phoneNumber: any, studentName: any, parentName: any )
   {
-    const normalizedNumber = this.normalizePhoneNumber( phoneNumber );
-
-    // Determine if we should show notification
-    const hasStudentData = studentName && parentName;
-    const shouldShowForEvent = this.shouldShowNotificationForEvent( event, hasStudentData );
-
-    if ( !shouldShowForEvent )
-    {
-      console.log( `Skipping notification for event ${ event } (no student data and not priority event)` );
-      return;
-    }
-
-    console.log( `Showing notification for ${ normalizedNumber }:`, {
-      event,
-      studentName: studentName || 'Unknown',
-      parentName: parentName || 'Unknown',
-      hasStudentData
-    } );
 
     try
     {
-    // Show notification using the enhanced service
+      console.log( 'Student Name: i am getting from the try showNotification', studentName );
+
+
       CallDetectionService.showNotificationWithStudentInfo(
         event,
         phoneNumber,
@@ -177,28 +154,15 @@ class NotificationManager
         parentName
       );
 
-      // Update call history to track this notification
-      const existingCall = this.callHistory.get( normalizedNumber );
-      if ( existingCall )
-      {
-        this.callHistory.set( normalizedNumber, {
-          ...existingCall,
-          lastNotificationEvent: event,
-          lastNotificationTime: Date.now(),
-          lastNotificationData: { studentName, parentName }
-        } );
-      }
-
-      console.log( `Notification shown successfully for ${ normalizedNumber }` );
-
     } catch ( error )
     {
-      console.error( `Error showing notification for ${ normalizedNumber }:`, error );
+      console.log( 'Student Name: i am getting from the catch showNotification', studentName );
+      // Error handling without logging
     }
   }
 
   // Determine if we should show notification for this event type
-  shouldShowNotificationForEvent ( event, hasStudentData )
+  shouldShowNotificationForEvent ( event: any, hasStudentData: any )
   {
     switch ( event )
     {
@@ -222,17 +186,16 @@ class NotificationManager
   }
 
   // Clear notifications for a specific number when call ends
-  clearNotificationsForNumber ( phoneNumber )
+  clearNotificationsForNumber ( phoneNumber: any )
   {
     const normalizedNumber = this.normalizePhoneNumber( phoneNumber );
 
     try
     {
       CallDetectionService.clearNotificationsForNumber( phoneNumber );
-      console.log( `Cleared notifications for ${ normalizedNumber }` );
     } catch ( error )
     {
-      console.error( `Error clearing notifications for ${ normalizedNumber }:`, error );
+      // Error handling without logging
     }
   }
 
@@ -243,10 +206,9 @@ class NotificationManager
     {
       CallDetectionService.clearAllCallNotifications();
       this.callHistory.clear();
-      console.log( 'All call notifications cleared' );
     } catch ( error )
     {
-      console.error( 'Error clearing all notifications:', error );
+      // Error handling without logging
     }
   }
 
@@ -256,11 +218,9 @@ class NotificationManager
     try
     {
       const count = await CallDetectionService.getActiveNotificationCount();
-      console.log( `Active notification count: ${ count }` );
       return count;
     } catch ( error )
     {
-      console.error( 'Error getting notification count:', error );
       return 0;
     }
   }
@@ -276,7 +236,6 @@ class NotificationManager
       if ( currentTime - callData.lastTimestamp > maxAge )
       {
         this.callHistory.delete( phoneNumber );
-        console.log( `Removed old call history for ${ phoneNumber }` );
       }
     }
   }
@@ -296,10 +255,9 @@ class NotificationManager
   }
 
   // Handle IDLE state specifically
-  handleCallEnded ( phoneNumber, studentName, parentName )
+  handleCallEnded ( phoneNumber: any, studentName: any, parentName: any )
   {
     const normalizedNumber = this.normalizePhoneNumber( phoneNumber );
-    console.log( `Call ended for ${ normalizedNumber }` );
 
     // Show final notification if we have student data
     if ( studentName && parentName )
@@ -321,7 +279,6 @@ class NotificationManager
     setTimeout( () =>
     {
       this.callHistory.delete( normalizedNumber );
-      console.log( `Cleaned up call history for ${ normalizedNumber }` );
     }, 30000 ); // 30 seconds
   }
 }
@@ -330,15 +287,11 @@ class NotificationManager
 const notificationManager = new NotificationManager();
 
 // Enhanced fetchingPastEventsData function
-export const fetchingPastEventsData = async ( number: string, event: string ) =>
+export const fetchingPastEventsData = async ( number: string, event: string ): Promise<void> =>
 {
-  console.log( '=== START fetchingPastEventsData ===' );
-  console.log( 'Input parameters:', { number, event, timestamp: new Date().toISOString() } );
-
   // Check if we should proceed with this call
   if ( !notificationManager.shouldProcessCall( number, event ) )
   {
-    console.log( 'Skipping fetchingPastEventsData - duplicate or in progress' );
     return;
   }
 
@@ -347,12 +300,10 @@ export const fetchingPastEventsData = async ( number: string, event: string ) =>
 
   try
   {
-    console.log( 'Step 1: Getting API URL from storage...' );
     const apiUrlFromStorage = await AsyncStorage.getItem( 'selectedItemInfo' );
 
     if ( !apiUrlFromStorage )
     {
-      console.log( 'ERROR: No selectedItemInfo found in AsyncStorage' );
       notificationManager.markApiCompleted( number, event );
       // notificationManager.showNotification( event, number, null, null );
       return;
@@ -363,10 +314,8 @@ export const fetchingPastEventsData = async ( number: string, event: string ) =>
     {
       const parsedInfo = JSON.parse( apiUrlFromStorage );
       apiUrl = parsedInfo.apiUrl;
-      console.log( 'Parsed API URL:', apiUrl );
     } catch ( parseError )
     {
-      console.error( 'Error parsing selectedItemInfo:', parseError );
       notificationManager.markApiCompleted( number, event );
       // notificationManager.showNotification( event, number, null, null );
       return;
@@ -374,18 +323,15 @@ export const fetchingPastEventsData = async ( number: string, event: string ) =>
 
     if ( !apiUrl )
     {
-      console.log( 'ERROR: No apiUrl found in parsed data' );
       notificationManager.markApiCompleted( number, event );
       // notificationManager.showNotification( event, number, null, null );
       return;
     }
 
-    console.log( 'Step 2: Getting token from storage...' );
     const token = await AsyncStorage.getItem( 'token' );
 
     if ( !token )
     {
-      console.log( 'ERROR: No token found in AsyncStorage' );
       notificationManager.markApiCompleted( number, event );
       // notificationManager.showNotification( event, number, null, null );
       return;
@@ -397,7 +343,6 @@ export const fetchingPastEventsData = async ( number: string, event: string ) =>
     };
 
     const fullUrl = apiUrl + 'get-student-search-list-by-phone';
-    console.log( 'Making API call to:', fullUrl );
 
     const response = await fetch( fullUrl, {
       method: 'POST',
@@ -408,42 +353,33 @@ export const fetchingPastEventsData = async ( number: string, event: string ) =>
       body: JSON.stringify( requestBody ),
     } );
 
-    console.log( 'Response status:', response.status );
-
     if ( response.ok )
     {
       const responseData = await response.json();
-      console.log( 'API Response received:', JSON.stringify( responseData, null, 2 ) );
 
       const studentName = responseData.student_names;
       const parentName = responseData.parent_name;
-
-      console.log( 'Extracted values:', { studentName, parentName } );
 
       // Mark API as completed first
       notificationManager.markApiCompleted( number, event );
 
       if ( studentName && parentName )
       {
-        console.log( 'SUCCESS: Found student and parent data' );
         callStore.setStudentDetails( { studentName, parentName } );
         callStore.setModalVisible( true );
 
         // Show notification with student info
+        console.log( 'Student Name: i am getting from the  if', studentName );
         notificationManager.showNotification( event, number, studentName, parentName );
       }
       else if ( studentName )
       {
-        console.log( 'PARTIAL: Found student name only' );
-        callStore.setStudentDetails( { studentName, parentName: 'Unknown' } );
+        // callStore.setStudentDetails( { studentName, parentName: 'Unknown' } );
         callStore.setModalVisible( true );
 
-        // Show notification with student name only
-        notificationManager.showNotification( event, number, studentName, null );
       }
       else
       {
-        console.log( 'NO DATA: No student details found' );
         // Only show fallback for important events
         // notificationManager.showNotification( event, number, null, null );
       }
@@ -456,14 +392,12 @@ export const fetchingPastEventsData = async ( number: string, event: string ) =>
     }
     else
     {
-      console.log( 'API call failed with status:', response.status );
       notificationManager.markApiCompleted( number, event );
       // notificationManager.showNotification( event, number, null, null );
     }
   }
   catch ( error )
   {
-    console.error( 'API call error:', error.message );
     notificationManager.markApiCompleted( number, event );
 
     ToastAndroid.show(
@@ -473,8 +407,6 @@ export const fetchingPastEventsData = async ( number: string, event: string ) =>
 
     // notificationManager.showNotification( event, number, null, null );
   }
-
-  console.log( '=== END fetchingPastEventsData ===' );
 };
 
 // Export the notification manager instance for direct access if needed

@@ -129,10 +129,16 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
         try {
             Log.d(TAG, "Request to show notification: $callState, $phoneNumber, $studentName, $parentName")
             
+            // Don't show notification if any required field is empty or null
+            if (studentName.isNullOrEmpty() || parentName.isNullOrEmpty() || phoneNumber.isNullOrEmpty()) {
+                Log.d(TAG, "Skipping notification: Missing required data")
+                return
+            }
+            
             // Clean up old trackers periodically
             cleanupOldTrackers()
             
-            val normalizedPhoneNumber = phoneNumber?.trim() ?: "Unknown"
+            val normalizedPhoneNumber = phoneNumber.trim()
             val notificationId = getNotificationIdForNumber(normalizedPhoneNumber)
             val currentTime = System.currentTimeMillis()
             
@@ -164,56 +170,13 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            // Create notification content based on available data
+            // Create notification content
             val (title, body) = when (callState) {
-                "RINGING" -> {
-                    when {
-                        !studentName.isNullOrEmpty() && !parentName.isNullOrEmpty() -> 
-                            "📞 Incoming Call - $studentName" to "Parent: $parentName • ${formatPhoneNumber(normalizedPhoneNumber)}"
-                        !studentName.isNullOrEmpty() -> 
-                            "📞 Incoming Call - $studentName" to "Phone: ${formatPhoneNumber(normalizedPhoneNumber)}"
-                        else -> 
-                            "📞 Incoming Call" to "From: ${formatPhoneNumber(normalizedPhoneNumber)}"
-                    }
-                }
-                "OUTGOING" -> {
-                    when {
-                        !studentName.isNullOrEmpty() && !parentName.isNullOrEmpty() -> 
-                            "📱 Outgoing Call - $studentName" to "Parent: $parentName • ${formatPhoneNumber(normalizedPhoneNumber)}"
-                        !studentName.isNullOrEmpty() -> 
-                            "📱 Outgoing Call - $studentName" to "Phone: ${formatPhoneNumber(normalizedPhoneNumber)}"
-                        else -> 
-                            "📱 Outgoing Call" to "To: ${formatPhoneNumber(normalizedPhoneNumber)}"
-                    }
-                }
-                "OFFHOOK" -> {
-                    when {
-                        !studentName.isNullOrEmpty() && !parentName.isNullOrEmpty() -> 
-                            "📞 Call Active - $studentName" to "Parent: $parentName • ${formatPhoneNumber(normalizedPhoneNumber)}"
-                        !studentName.isNullOrEmpty() -> 
-                            "📞 Call Active - $studentName" to "Phone: ${formatPhoneNumber(normalizedPhoneNumber)}"
-                        else -> 
-                            "📞 Call Active" to "With: ${formatPhoneNumber(normalizedPhoneNumber)}"
-                    }
-                }
-                "IDLE" -> {
-                    when {
-                        !studentName.isNullOrEmpty() && !parentName.isNullOrEmpty() -> 
-                            "📵 Call Ended - $studentName" to "Parent: $parentName • ${formatPhoneNumber(normalizedPhoneNumber)}"
-                        !studentName.isNullOrEmpty() -> 
-                            "📵 Call Ended - $studentName" to "Phone: ${formatPhoneNumber(normalizedPhoneNumber)}"
-                        else -> 
-                            "📵 Call Ended" to "With: ${formatPhoneNumber(normalizedPhoneNumber)}"
-                    }
-                }
-                else -> {
-                    when {
-                        !studentName.isNullOrEmpty() -> 
-                            "📞 Call Event - $studentName" to "Phone: ${formatPhoneNumber(normalizedPhoneNumber)}"
-                        else -> 
-                            "📞 Call Event" to "Phone: ${formatPhoneNumber(normalizedPhoneNumber)}"
-                    }
-                }
+                "RINGING" -> "📞 Incoming Call - $studentName" to "Parent: $parentName • ${formatPhoneNumber(normalizedPhoneNumber)}"
+                "OUTGOING" -> "📱 Outgoing Call - $studentName" to "Parent: $parentName • ${formatPhoneNumber(normalizedPhoneNumber)}"
+                "OFFHOOK" -> "📞 Call Active - $studentName" to "Parent: $parentName • ${formatPhoneNumber(normalizedPhoneNumber)}"
+                "IDLE" -> "📵 Call Ended - $studentName" to "Parent: $parentName • ${formatPhoneNumber(normalizedPhoneNumber)}"
+                else -> "📞 Call Event - $studentName" to "Parent: $parentName • ${formatPhoneNumber(normalizedPhoneNumber)}"
             }
 
             // Determine notification behavior based on call state
@@ -237,7 +200,7 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
                 .setWhen(currentTime)
                 .setShowWhen(true)
                 .setGroup("CALL_NOTIFICATIONS_${normalizedPhoneNumber}")
-                .setColor(0xFFB6488D.toInt()) // Your app's theme color
+                .setColor(0xFFB6488D.toInt())
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 
             // Add different notification styles based on call state
@@ -252,12 +215,6 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
                     .setVibrate(longArrayOf(0, 100))
             } else {
                 notificationBuilder.setDefaults(Notification.DEFAULT_LIGHTS)
-            }
-
-            // Add action buttons for active calls
-            if (callState == "RINGING" || callState == "OFFHOOK") {
-                // You can add action buttons here if needed
-                // .addAction(R.drawable.ic_call_end, "End Call", endCallPendingIntent)
             }
 
             val notification = notificationBuilder.build()
@@ -287,7 +244,7 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
     
     // Helper function to format phone numbers nicely
     private fun formatPhoneNumber(phoneNumber: String): String {
-        if (phoneNumber == "Unknown" || phoneNumber.isEmpty()) return "Unknown"
+        if (phoneNumber.isEmpty()) return ""
         
         // Basic formatting - you can enhance this based on your region
         return when {
@@ -316,7 +273,9 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
     @ReactMethod
     fun clearNotificationsForNumber(phoneNumber: String?) {
         try {
-            val normalizedPhoneNumber = phoneNumber?.trim() ?: return
+            if (phoneNumber.isNullOrEmpty()) return
+            
+            val normalizedPhoneNumber = phoneNumber.trim()
             val notificationManager = reactApplicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val notificationId = getNotificationIdForNumber(normalizedPhoneNumber)
             
@@ -401,11 +360,8 @@ class CallDetectionManagerAndroid(reactContext: ReactApplicationContext) : React
                 .emit(eventName, params)
         } catch (e: Exception) {
             Log.e(TAG, "Error sending event to JS: ${e.message}", e)
-        
         }
     }
-    
-   
     
     fun onCallStateChanged(state: String, phoneNumber: String?) {
         Log.d(TAG, "onCallStateChanged called: state=$state, phoneNumber=$phoneNumber")
@@ -461,4 +417,3 @@ class ProgrammaticCallReceiver(private val manager: CallDetectionManagerAndroid)
         }
     }
 }
-

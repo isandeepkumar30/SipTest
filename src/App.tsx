@@ -55,25 +55,20 @@ const CALL_STATES = {
 const backgroundTask = async ( taskDataArguments: any ) =>
 {
   const delay = taskDataArguments?.delay ?? 5000;
-  console.log( 'Background task started with delay:', delay );
 
   while ( BackgroundService.isRunning() )
   {
     try
     {
-      console.log( 'Background task running...' );
-
       // Keep call detection active
       const isCallDetectionActive = await CallDetectionService.isActive();
       if ( !isCallDetectionActive )
       {
-        console.log( 'Restarting call detection in background...' );
         await CallDetectionService.startCallDetection();
       }
 
       // Check app state and handle accordingly
       const currentAppState = AppState.currentState;
-      console.log( 'App state in background:', currentAppState );
 
       await sleep( delay );
     } catch ( error )
@@ -82,8 +77,6 @@ const backgroundTask = async ( taskDataArguments: any ) =>
       await sleep( delay );
     }
   }
-
-  console.log( 'Background task stopped' );
 };
 
 // ===== BACKGROUND SERVICE OPTIONS =====
@@ -247,7 +240,6 @@ const App = observer( () =>
       const lastCallTime = this.recentCalls.get( currentCall );
       if ( lastCallTime && ( currentTime - lastCallTime ) < this.CALL_DEBOUNCE_MS )
       {
-        console.log( `Skipping duplicate call processing within ${ this.CALL_DEBOUNCE_MS }ms:`, currentCall );
         return false;
       }
 
@@ -267,13 +259,11 @@ const App = observer( () =>
         }
       } );
 
-      console.log( 'Processing call:', currentCall );
       return true;
     },
 
     reset ()
     {
-      console.log( 'Resetting call state manager' );
       this.lastProcessedCall = null;
       this.recentCalls.clear();
     }
@@ -281,33 +271,25 @@ const App = observer( () =>
 
   const listener = CallDetectionService.addListener( ( callData: any ) =>
   {
-    console.log( '=== CALL STATE CHANGE EVENT ===' );
-    console.log( 'Call State Changed in App:', callData );
-    console.log( 'Event timestamp:', new Date().toISOString() );
-
     const state = callData?.state;
     const phoneNumber = callData?.phoneNumber;
 
     // Check if we should process this call event
     if ( !callStateManager.shouldProcessCall( state, phoneNumber ) )
     {
-      console.log( 'Skipping duplicate call event processing' );
       return;
     }
 
     if ( state )
     {
-      console.log( 'Setting call state to:', state );
       setCallState( state );
     }
 
     if ( phoneNumber )
     {
-      console.log( 'Setting phone number to:', phoneNumber );
       setCurrentCallNumber( phoneNumber );
     } else if ( state === CALL_STATES.IDLE )
     {
-      console.log( 'Clearing phone number (IDLE state)' );
       setCurrentCallNumber( '' );
     }
 
@@ -315,50 +297,33 @@ const App = observer( () =>
     switch ( state )
     {
       case CALL_STATES.RINGING:
-        console.log( '=== HANDLING RINGING STATE ===' );
         if ( phoneNumber )
         {
-          console.log( 'Processing RINGING call for:', phoneNumber );
           // RINGING is highest priority - always process
           fetchingPastEventsData( phoneNumber, 'RINGING' );
-        } else
-        {
-          console.log( 'No phone number provided for RINGING state' );
         }
         break;
 
       case CALL_STATES.OUTGOING:
-        console.log( '=== HANDLING OUTGOING STATE ===' );
         if ( phoneNumber )
         {
-          console.log( 'Processing OUTGOING call for:', phoneNumber );
           // OUTGOING is second priority - always process
           fetchingPastEventsData( phoneNumber, 'OUTGOING' );
-        } else
-        {
-          console.log( 'No phone number provided for OUTGOING state' );
         }
         break;
 
       case CALL_STATES.OFFHOOK:
-        console.log( '=== HANDLING OFFHOOK STATE ===' );
         if ( phoneNumber )
         {
-          console.log( 'Processing OFFHOOK call for:', phoneNumber );
           // OFFHOOK is lower priority - only process if we haven't already processed this number
           fetchingPastEventsData( phoneNumber, 'OFFHOOK' );
-        } else
-        {
-          console.log( 'No phone number provided for OFFHOOK state' );
         }
         break;
 
       case CALL_STATES.IDLE:
-        console.log( '=== HANDLING IDLE STATE ===' );
         setCurrentCallNumber( '' );
         if ( callStore?.setModalVisible )
         {
-          console.log( 'Closing modal for IDLE state' );
           callStore.setModalVisible( false );
         }
         // Reset call state manager when call ends
@@ -366,22 +331,16 @@ const App = observer( () =>
         break;
 
       default:
-        console.log( '=== UNKNOWN CALL STATE ===' );
-        console.log( 'Unknown call state received:', state );
         break;
     }
-
-    console.log( '=== END CALL STATE CHANGE EVENT ===' );
   } );
   // Initialize FCM
   const initializeFCM = useCallback( async (): Promise<void> =>
   {
     try
     {
-      console.log( 'Initializing FCM...' );
       await requestUserPermission();
       // await NotificationListener();
-      console.log( 'FCM initialized successfully' );
     } catch ( error )
     {
       console.error( 'FCM initialization error:', error );
@@ -393,13 +352,9 @@ const App = observer( () =>
   {
     try
     {
-      console.log( 'Initializing call detection service...' );
-
       const permissionStatus = await CallDetectionService.checkAllPermissions();
-      console.log( 'Current permission status:', permissionStatus );
 
       const hasPermissions = await CallDetectionService.requestPermissions();
-      console.log( 'Call detection permissions granted:', hasPermissions );
 
       if ( !hasPermissions )
       {
@@ -430,7 +385,6 @@ const App = observer( () =>
       }
 
       const started = await CallDetectionService.startCallDetection();
-      console.log( 'Call detection started:', started );
 
       if ( started )
       {
@@ -445,33 +399,25 @@ const App = observer( () =>
         // IMPROVED: Enhanced call listener with better deduplication
         const listener = CallDetectionService.addListener( ( callData: any ) =>
         {
-          console.log( '=== CALL STATE CHANGE EVENT ===' );
-          console.log( 'Call State Changed in App:', callData );
-          console.log( 'Event timestamp:', new Date().toISOString() );
-
           const state = callData?.state;
           const phoneNumber = callData?.phoneNumber;
 
           // Apply app-level deduplication
           if ( !callStateManager.shouldProcessCall( state, phoneNumber ) )
           {
-            console.log( 'Skipping duplicate call event processing in App' );
             return;
           }
 
           if ( state )
           {
-            console.log( 'Setting call state to:', state );
             setCallState( state );
           }
 
           if ( phoneNumber )
           {
-            console.log( 'Setting phone number to:', phoneNumber );
             setCurrentCallNumber( phoneNumber );
           } else if ( state === CALL_STATES.IDLE )
           {
-            console.log( 'Clearing phone number (IDLE state)' );
             setCurrentCallNumber( '' );
           }
 
@@ -479,54 +425,37 @@ const App = observer( () =>
           switch ( state )
           {
             case CALL_STATES.RINGING:
-              console.log( '=== HANDLING RINGING STATE ===' );
               if ( phoneNumber )
               {
-                console.log( 'Processing RINGING call for:', phoneNumber );
                 // RINGING is highest priority - always process immediately
                 fetchingPastEventsData( phoneNumber, 'RINGING' );
-              } else
-              {
-                console.log( 'No phone number provided for RINGING state' );
               }
               break;
 
             case CALL_STATES.OUTGOING:
-              console.log( '=== HANDLING OUTGOING STATE ===' );
               if ( phoneNumber )
               {
-                console.log( 'Processing OUTGOING call for:', phoneNumber );
                 // OUTGOING is second priority - always process immediately
                 fetchingPastEventsData( phoneNumber, 'OUTGOING' );
-              } else
-              {
-                console.log( 'No phone number provided for OUTGOING state' );
               }
               break;
 
             case CALL_STATES.OFFHOOK:
-              console.log( '=== HANDLING OFFHOOK STATE ===' );
               if ( phoneNumber )
               {
-                console.log( 'Processing OFFHOOK call for:', phoneNumber );
                 // OFFHOOK is lower priority - only process if it's a new call
                 // Add a small delay to avoid processing OFFHOOK immediately after RINGING/OUTGOING
                 setTimeout( () =>
                 {
                   fetchingPastEventsData( phoneNumber, 'OFFHOOK' );
                 }, 1500 ); // 1.5 second delay
-              } else
-              {
-                console.log( 'No phone number provided for OFFHOOK state' );
               }
               break;
 
             case CALL_STATES.IDLE:
-              console.log( '=== HANDLING IDLE STATE ===' );
               setCurrentCallNumber( '' );
               if ( callStore?.setModalVisible )
               {
-                console.log( 'Closing modal for IDLE state' );
                 callStore.setModalVisible( false );
               }
               // Reset call state manager when call ends
@@ -534,20 +463,14 @@ const App = observer( () =>
               break;
 
             default:
-              console.log( '=== UNKNOWN CALL STATE ===' );
-              console.log( 'Unknown call state received:', state );
               break;
           }
-
-          console.log( '=== END CALL STATE CHANGE EVENT ===' );
         } );
 
         callListenerRef.current = listener;
-        console.log( 'Enhanced call listener added successfully' );
         return true;
       } else
       {
-        console.log( 'Call detection failed to start' );
         setPermissionsGranted( false );
         return false;
       }
@@ -566,15 +489,12 @@ const App = observer( () =>
     {
       if ( backgroundServiceRef.current || isCleaningUpRef.current )
       {
-        console.log( 'Background service already running or app is cleaning up' );
         return;
       }
 
-      console.log( 'Starting background service...' );
       await BackgroundService.start( backgroundTask, backgroundOptions );
       backgroundServiceRef.current = true;
       setIsBackgroundServiceStarted( true );
-      console.log( 'Background service started successfully' );
     } catch ( error )
     {
       console.error( 'Error starting background service:', error );
@@ -589,15 +509,12 @@ const App = observer( () =>
     {
       if ( !backgroundServiceRef.current )
       {
-        console.log( 'Background service not running' );
         return;
       }
 
-      console.log( 'Stopping background service...' );
       await BackgroundService.stop();
       backgroundServiceRef.current = false;
       setIsBackgroundServiceStarted( false );
-      console.log( 'Background service stopped' );
     } catch ( error )
     {
       console.error( 'Error stopping background service:', error );
@@ -607,24 +524,18 @@ const App = observer( () =>
   // ===== IMPROVED APP STATE CHANGE HANDLING =====
   const handleAppStateChange = useCallback( async ( nextAppState: string ) =>
   {
-    console.log( 'App state changed from', appStateRef.current, 'to', nextAppState );
-
     if ( appStateRef.current.match( /inactive|background/ ) && nextAppState === 'active' )
     {
-      console.log( 'App has come to the foreground!' );
       // App came to foreground - ensure services are still running
       if ( permissionsGranted && !backgroundServiceRef.current && !isCleaningUpRef.current )
       {
-        console.log( 'Restarting background service on foreground' );
         await startBackgroundService();
       }
     } else if ( nextAppState.match( /inactive|background/ ) )
     {
-      console.log( 'App has gone to the background!' );
       // App went to background - ensure background service is running
       if ( permissionsGranted && !backgroundServiceRef.current && !isCleaningUpRef.current )
       {
-        console.log( 'Starting background service on background' );
         await startBackgroundService();
       }
     }
@@ -679,7 +590,6 @@ const App = observer( () =>
           if ( currentToken && currentToken !== fcmToken )
           {
             setFcmToken( currentToken );
-            console.log( 'FCM Token updated:', currentToken );
           }
         } catch ( error )
         {
@@ -718,7 +628,6 @@ const App = observer( () =>
       {
         if ( isAppInitialized ) return;
 
-        console.log( 'Starting app initialization...' );
         isCleaningUpRef.current = false;
 
         // Initialize FCM first
@@ -748,8 +657,6 @@ const App = observer( () =>
         {
           setIsAppInitialized( true );
         }
-
-        console.log( 'App initialization completed' );
       } catch ( error )
       {
         console.error( 'Error initializing app:', error );
@@ -799,7 +706,6 @@ const App = observer( () =>
   {
     return () =>
     {
-      console.log( 'App component unmounting - performing cleanup...' );
       isCleaningUpRef.current = true;
 
       // Clear intervals
@@ -823,8 +729,6 @@ const App = observer( () =>
       // DO NOT STOP THESE SERVICES - THEY SHOULD CONTINUE IN BACKGROUND
       // CallDetectionService.stopCallDetection(); // REMOVED
       // stopBackgroundService(); // REMOVED
-
-      console.log( 'App cleanup completed - background services continue running' );
     };
   }, [] );
 

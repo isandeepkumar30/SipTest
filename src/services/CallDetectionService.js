@@ -25,8 +25,6 @@ class CallDetectionService
         {
             try
             {
-                console.log( 'Requesting Android permissions...' );
-
                 // Check current permissions
                 const currentPermissions = {
                     phoneState: await PermissionsAndroid.check( PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE ),
@@ -38,13 +36,10 @@ class CallDetectionService
                     batteryOptimization: await PermissionsAndroid.check( 'android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS' )
                 };
 
-                console.log( 'Current permissions:', currentPermissions );
-
                 const allAlreadyGranted = Object.values( currentPermissions ).every( permission => permission );
 
                 if ( allAlreadyGranted )
                 {
-                    console.log( 'All permissions already granted' );
                     this.permissionsChecked = true;
                     this.hasPermissions = true;
                     await this.requestBatteryOptimization();
@@ -61,8 +56,6 @@ class CallDetectionService
                 ];
 
                 const granted = await PermissionsAndroid.requestMultiple( permissionsToRequest );
-
-                console.log( 'Permission results:', granted );
 
                 const phoneStateGranted = granted[PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE] === PermissionsAndroid.RESULTS.GRANTED;
                 const outgoingCallsGranted = granted[PermissionsAndroid.PERMISSIONS.PROCESS_OUTGOING_CALLS] === PermissionsAndroid.RESULTS.GRANTED;
@@ -108,8 +101,6 @@ class CallDetectionService
 
         try
         {
-            console.log( 'Requesting battery optimization exemption...' );
-
             const batteryGranted = await PermissionsAndroid.request(
                 'android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
                 {
@@ -120,8 +111,6 @@ class CallDetectionService
                     buttonPositive: 'OK',
                 }
             );
-
-            console.log( 'Battery optimization permission:', batteryGranted );
 
             if ( batteryGranted === PermissionsAndroid.RESULTS.GRANTED )
             {
@@ -210,8 +199,6 @@ class CallDetectionService
 
     async startCallDetection()
     {
-        console.log( 'Starting call detection...' );
-
         if ( !CallDetectionManager )
         {
             console.error( 'CallDetectionManager native module not found' );
@@ -230,10 +217,8 @@ class CallDetectionService
         {
             try
             {
-                console.log( 'Calling CallDetectionManager.startCallDetection()' );
                 CallDetectionManager.startCallDetection();
                 this.isListening = true;
-                console.log( 'Call detection started successfully' );
 
                 this.addTestListener();
             } catch ( error )
@@ -241,9 +226,6 @@ class CallDetectionService
                 console.error( 'Error starting call detection:', error );
                 return false;
             }
-        } else
-        {
-            console.log( 'Call detection already started' );
         }
 
         return true;
@@ -252,33 +234,27 @@ class CallDetectionService
     // Method to show notification with student info
     showNotificationWithStudentInfo( callState, phoneNumber, studentName, parentName )
     {
-        console.log( 'Showing notification with student info:', { callState, phoneNumber, studentName, parentName } );
 
-        if ( !CallDetectionManager || !CallDetectionManager.showNotificationWithStudentInfo )
-        {
-            console.warn( 'showNotificationWithStudentInfo method not available' );
-            return;
-        }
 
         try
         {
+            console.log( 'Student Name: i am getting from the try showNotificationWithStudentInfo', studentName );
             CallDetectionManager.showNotificationWithStudentInfo(
                 callState,
-                phoneNumber || '',
-                studentName || '',
-                parentName || ''
+                phoneNumber,
+                studentName,
+                parentName
             );
         } catch ( error )
         {
+            console.log( 'Student Name: i am getting from the catch showNotificationWithStudentInfo', studentName ); ``
             console.error( 'Error showing notification with student info:', error );
         }
     }
 
-    // NEW: Clear notifications for specific phone number
+
     clearNotificationsForNumber( phoneNumber )
     {
-        console.log( 'Clearing notifications for number:', phoneNumber );
-
         if ( !CallDetectionManager || !CallDetectionManager.clearNotificationsForNumber )
         {
             console.warn( 'clearNotificationsForNumber method not available' );
@@ -297,8 +273,6 @@ class CallDetectionService
     // NEW: Clear all call notifications
     clearAllCallNotifications()
     {
-        console.log( 'Clearing all call notifications' );
-
         if ( !CallDetectionManager || !CallDetectionManager.clearAllCallNotifications )
         {
             console.warn( 'clearAllCallNotifications method not available' );
@@ -337,11 +311,9 @@ class CallDetectionService
     {
         if ( callDetectionEmitter )
         {
-            console.log( 'Adding test listener for CallStateChanged events...' );
             const testListener = callDetectionEmitter.addListener( 'CallStateChanged', ( data ) =>
             {
-                console.log( 'Test Listener - State:', data?.state );
-                console.log( 'Test Listener - Phone Number:', data?.phoneNumber );
+                // Test listener for call state changes
             } );
 
             this.listeners.push( testListener );
@@ -353,11 +325,8 @@ class CallDetectionService
 
     stopCallDetection()
     {
-        console.log( 'Stopping call detection...' );
-
         if ( !CallDetectionManager )
         {
-            console.log( 'CallDetectionManager not available' );
             return;
         }
 
@@ -367,7 +336,6 @@ class CallDetectionService
             {
                 CallDetectionManager.stopCallDetection();
                 this.isListening = false;
-                console.log( 'Call detection stopped' );
             } catch ( error )
             {
                 console.error( 'Error stopping call detection:', error );
@@ -377,8 +345,6 @@ class CallDetectionService
 
     addListener( callback )
     {
-        console.log( 'Adding call state listener...' );
-
         if ( !callDetectionEmitter )
         {
             console.error( 'Call detection emitter not available' );
@@ -387,12 +353,10 @@ class CallDetectionService
 
         const listener = callDetectionEmitter.addListener( 'CallStateChanged', ( data ) =>
         {
-            console.log( 'CallDetectionService received event:', data );
             callback( data );
         } );
 
         this.listeners.push( listener );
-        console.log( 'Listener added. Total listeners:', this.listeners.length );
 
         return listener;
     }
@@ -407,20 +371,17 @@ class CallDetectionService
             {
                 this.listeners.splice( index, 1 );
             }
-            console.log( 'Listener removed. Remaining listeners:', this.listeners.length );
         }
     }
 
     removeAllListeners()
     {
-        console.log( 'Removing all listeners...' );
         this.listeners.forEach( listener => listener.remove() );
         this.listeners = [];
         if ( callDetectionEmitter )
         {
             callDetectionEmitter.removeAllListeners( 'CallStateChanged' );
         }
-        console.log( 'All listeners removed' );
     }
 
     async isActive()

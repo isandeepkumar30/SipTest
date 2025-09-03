@@ -1,26 +1,26 @@
 import { AppRegistry } from 'react-native';
 import messaging from '@react-native-firebase/messaging';
-import notifee, {
-  AndroidImportance,
-  AndroidColor,
-  EventType,
-} from '@notifee/react-native';
+// import notifee, {
+//   AndroidImportance,
+//   AndroidColor,
+//   EventType,
+// } from '@notifee/react-native';
 import { name as appName } from './app.json';
 import App from './src/App';
 
 // Handle background events from Notifee
-notifee.onBackgroundEvent( async ( { type, detail } ) =>
-{
-  const { notification, pressAction } = detail;
+// notifee.onBackgroundEvent( async ( { type, detail } ) =>
+// {
+//   const { notification, pressAction } = detail;
 
-  console.log( 'Notifee background event:', type, detail );
+//   console.log( 'Notifee background event:', type, detail );
 
-  if ( type === EventType.ACTION_PRESS && pressAction?.id === 'read' )
-  {
-    console.log( 'Mark as read action pressed' );
-    await notifee.cancelNotification( notification.id );
-  }
-} );
+//   if ( type === EventType.ACTION_PRESS && pressAction?.id === 'read' )
+//   {
+//     console.log( 'Mark as read action pressed' );
+//     await notifee.cancelNotification( notification.id );
+//   }
+// } );
 
 // Handle background messages from FCM
 // messaging().setBackgroundMessageHandler( async remoteMessage =>
