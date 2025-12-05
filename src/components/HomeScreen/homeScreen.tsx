@@ -43,14 +43,35 @@ export const StudentList = observer( () =>
       {
         try
         {
-          await AsyncStorage.removeItem( 'lastSearchQuery' );
-          homePageStore.setSearchQuery( '' );
-          console.log( 'Cleared lastSearchQuery as app moved to background' );
+          // Save the search query when going to background (for external app launches)
+          if ( homePageStore.searchQuery )
+          {
+            await AsyncStorage.setItem( 'lastSearchQuery', homePageStore.searchQuery );
+            console.log( 'Saved search query when going to background' );
+          }
         } catch ( error )
         {
-          console.error( 'Error clearing lastSearchQuery:', error );
+          console.error( 'Error saving search query:', error );
         }
       }
+
+      if ( appState.match( /background/ ) && nextAppState === 'active' )
+      {
+        try
+        {
+          // Restore the search query when coming back
+          const savedQuery = await AsyncStorage.getItem( 'lastSearchQuery' );
+          if ( savedQuery )
+          {
+            homePageStore.setSearchQuery( savedQuery );
+            console.log( 'Restored search query when coming back to active' );
+          }
+        } catch ( error )
+        {
+          console.error( 'Error restoring search query:', error );
+        }
+      }
+
       setAppState( nextAppState );
     };
 
@@ -65,22 +86,7 @@ export const StudentList = observer( () =>
     };
   }, [appState] );
 
-  useFocusEffect(
-    useCallback( () =>
-    {
-      const loadSearchQuery = async () =>
-      {
-        const savedQuery = await AsyncStorage.getItem( 'lastSearchQuery' );
-        if ( savedQuery )
-        {
-          homePageStore.setSearchQuery( savedQuery );
-          fetchHomePageData();
-        }
-      };
 
-      loadSearchQuery();
-    }, [] )
-  );
 
 
 
@@ -106,6 +112,29 @@ export const StudentList = observer( () =>
 
     return () => backHandler.remove();
   }, [] );
+
+  // This runs only once when app boots (component mounts first time)
+  useEffect( () =>
+  {
+    const initializeApp = async () =>
+    {
+      try
+      {
+        // Your initialization code here - this runs ONLY on first mount
+        console.log( 'App initialized - first boot only' );
+
+        // Example: Clear any saved search query on app boot
+        await AsyncStorage.removeItem( 'lastSearchQuery' );
+        homePageStore.setSearchQuery( '' );
+
+      } catch ( error )
+      {
+        console.error( 'Error initializing app:', error );
+      }
+    };
+
+    initializeApp();
+  }, [] ); // Empty array means: run once on mount, never on inactive/background/active changes
 
   const getTextColor = () =>
   {
@@ -152,13 +181,6 @@ export const StudentList = observer( () =>
   {
     handleSearch();
   };
-
-  useFocusEffect(
-    useCallback( () =>
-    {
-      homePageStore.setSearchQuery( '' );
-    }, [] )
-  );
 
   const handleInputChange = ( text: string ) =>
   {

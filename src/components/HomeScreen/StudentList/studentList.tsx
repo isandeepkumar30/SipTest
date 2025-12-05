@@ -179,26 +179,21 @@ export const StudentListComponent: React.FC<StudentListComponentProps> =
                     <Pressable
                       onPress={() =>
                       {
-                        const phoneNumber = subItem.phone;
-                        const countryCode = subItem.phone_country;
-                        if ( phoneNumber && countryCode )
+                        const email = subItem.email;
+                        if ( email )
                         {
-                          const fullPhoneNumber = `${ countryCode }${ phoneNumber }`;
-                          if ( fullPhoneNumber )
-                          {
-                            Linking.openURL( `sms:${ fullPhoneNumber }` )
-                              .then( () => { } )
-                              .catch( error =>
-                              {
-                                console.error(
-                                  'Failed to open messaging app: ',
-                                  error,
-                                );
-                              } );
-                          } else
-                          {
-                            console.warn( 'Phone number is not available' );
-                          }
+                          Linking.openURL( `mailto:${ email }` )
+                            .then( () => { } )
+                            .catch( error =>
+                            {
+                              console.error(
+                                'Failed to open email app: ',
+                                error,
+                              );
+                            } );
+                        } else
+                        {
+                          console.warn( 'Email address is not available' );
                         }
                       }}
                       disabled={false}
