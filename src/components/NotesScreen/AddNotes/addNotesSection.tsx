@@ -44,6 +44,7 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
           selectedSetTypeFlag: '1',
           selectedUnSetTypeFlag: '1',
           selectedAdminOnly: '2',
+          selectedUrgent: '2',
           flagSetDate: null,
           flagUnsetDate: null,
           showFlagSetDatePicker: false,
@@ -138,6 +139,11 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
     addNotesStore.setSelectedAdminOnly( index, value );
   };
 
+  const handleRadioButtonUrgent = ( value: string, index: number ) =>
+  {
+    addNotesStore.setSelectedUrgent( index, value );
+  };
+
   const handleAddNoteSection = () =>
   {
     addNotesStore.addNoteSection();
@@ -213,6 +219,8 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
         let flagUnsetDate = '';
         let studentNotesFlag = '';
         let adminOnly = noteSection.selectedAdminOnly === '1' ? 'yes' : 'no';
+        let is_urgent = noteSection.selectedUrgent === '1' ? 'yes' : 'no';
+
 
 
         switch ( noteSection.selectedFlags )
@@ -294,6 +302,7 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
             flagUnsetType: flagUnsetType,
             flagUnsetDate: flagUnsetDate,
             only_admin: adminOnly,
+            is_urgent: is_urgent,
           };
 
           const token = await AsyncStorage.getItem( 'token' );
@@ -573,6 +582,16 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
                 radioButtons={AdminOnlyButton}
                 onPress={( value ) => handleRadioButtonAdminOnly( value, index )}
                 selectedId={addNotesStore.addNotesData[index].selectedAdminOnly}
+                containerStyle={dynamicStyles.radioButtonContainerFlag}
+              />
+            </View>
+
+            <View style={dynamicStyles.AdminOnlyNotes}>
+              <Text style={dynamicStyles.flagNotesLabel}>Is Urgent</Text>
+              <RadioGroup
+                radioButtons={AdminOnlyButton}
+                onPress={( value ) => handleRadioButtonUrgent( value, index )}
+                selectedId={addNotesStore.addNotesData[index].selectedUrgent}
                 containerStyle={dynamicStyles.radioButtonContainerFlag}
               />
             </View>

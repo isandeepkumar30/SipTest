@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
-import { View, Text, Linking, Image, BackHandler } from 'react-native';
+import { View, Text, Linking, Image, BackHandler, ToastAndroid } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { getFlagDisplayText, getFlagTextColor, StudentFlagsData } from '../../../utils/StudentFlagsColor/students_Flag';
 import { StudentListComponentProps } from '../../../utils/DataTypeInterface/students_Data_Type';
@@ -113,6 +113,13 @@ export const StudentListComponent: React.FC<StudentListComponentProps> =
                           Linking.openURL( `tel:${ fullPhoneNumber }` )
                             .then( () => { } )
                             .catch( error => { } );
+                        } else
+                        {
+                          ToastAndroid.showWithGravity(
+                            'No phone number is provided',
+                            ToastAndroid.LONG,
+                            ToastAndroid.BOTTOM
+                          );
                         }
                       }}
                       disabled={false}
@@ -154,8 +161,19 @@ export const StudentListComponent: React.FC<StudentListComponentProps> =
                               } );
                           } else
                           {
-                            console.warn( 'Phone number is not available' );
+                            ToastAndroid.showWithGravity(
+                              'No WhatsApp number is provided',
+                              ToastAndroid.LONG,
+                              ToastAndroid.BOTTOM
+                            );
                           }
+                        } else
+                        {
+                          ToastAndroid.showWithGravity(
+                            'No WhatsApp number is provided',
+                            ToastAndroid.LONG,
+                            ToastAndroid.BOTTOM
+                          );
                         }
                       }}
                       disabled={false}
@@ -193,7 +211,11 @@ export const StudentListComponent: React.FC<StudentListComponentProps> =
                             } );
                         } else
                         {
-                          console.warn( 'Email address is not available' );
+                          ToastAndroid.showWithGravity(
+                            'No email is provided',
+                            ToastAndroid.LONG,
+                            ToastAndroid.BOTTOM
+                          );
                         }
                       }}
                       disabled={false}

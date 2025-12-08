@@ -10,6 +10,7 @@ class AddNotesStore
     selectedSetTypeFlag: string;
     selectedUnSetTypeFlag: string;
     selectedAdminOnly: string;
+    selectedUrgent: string;
     flagSetDate: Date | null;
     flagUnsetDate: Date | null;
 
@@ -23,6 +24,7 @@ class AddNotesStore
         selectedSetTypeFlag: '1',
         selectedUnSetTypeFlag: '1',
         selectedAdminOnly: '2',
+      selectedUrgent: '2',
         flagSetDate: null,
         flagUnsetDate: null,
         showFlagSetDatePicker: false,
@@ -49,6 +51,7 @@ class AddNotesStore
       setSelectedSetTypeFlag: action.bound,
       setSelectedUnSetTypeFlag: action.bound,
       setSelectedAdminOnly: action.bound,
+      setSelectedUrgent: action.bound,
       setShowFlagSetDatePicker: action.bound,
       setShowFlagUnsetDatePicker: action.bound,
       addNoteSection: action.bound,
@@ -68,6 +71,7 @@ class AddNotesStore
       selectedSetTypeFlag: '1',
       selectedUnSetTypeFlag: '1',
       selectedAdminOnly: '2',
+      selectedUrgent: '2',
       flagSetDate: null,
       flagUnsetDate: null,
       showFlagSetDatePicker: false,
@@ -119,6 +123,11 @@ class AddNotesStore
   setSelectedAdminOnly ( index: number, selectedAdminOnly: string )
   {
     this.addNotesData[index].selectedAdminOnly = selectedAdminOnly;
+  }
+
+  setSelectedUrgent ( index: number, selectedUrgent: string )
+  {
+    this.addNotesData[index].selectedUrgent = selectedUrgent;
   }
 
   setShowFlagSetDatePicker ( index: number, showFlagSetDatePicker: boolean )
