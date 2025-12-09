@@ -27,6 +27,7 @@
     "mobx-react": "^9.2.0",
     "react": "19.1.0",
     "react-native": "0.80.2",
+    "react-native-advanced-checkbox": "^2.0.6",
     "react-native-background-actions": "^4.0.1",
     "react-native-bouncy-checkbox": "^4.1.2",
     "react-native-call-detection": "^1.9.0",

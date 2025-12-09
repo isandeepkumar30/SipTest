@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { observer } from 'mobx-react';
 import RadioGroup from 'react-native-radio-buttons-group';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { AdvancedCheckbox } from 'react-native-advanced-checkbox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
@@ -40,7 +41,7 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
       addNotesStore.setAddNotesData( [
         {
           studentNotes: '',
-          selectedFlags: '1',
+          selectedFlags: [],
           selectedSetTypeFlag: '1',
           selectedUnSetTypeFlag: '1',
           selectedAdminOnly: '2',
@@ -118,9 +119,8 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
     }
   };
 
-  const handleRadioButtonChange = ( value: string, index: number ) =>
+  const handleCheckboxChange = ( value: string, index: number ) =>
   {
-  
     addNotesStore.setSelectedFlags( index, value );
   };
 
@@ -217,55 +217,33 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
         let flagSetDate = '';
         let flagUnsetType = '';
         let flagUnsetDate = '';
-        let studentNotesFlag = '';
+        let studentNotesFlags: string[] = [];
         let adminOnly = noteSection.selectedAdminOnly === '1' ? 'yes' : 'no';
         let is_urgent = noteSection.selectedUrgent === '1' ? 'yes' : 'no';
 
+        const flagMap: { [key: string]: string } = {
+          '1': 'no_flag',
+          '2': 'new_registration',
+          '3': 'gray',
+          '4': 'blue',
+          '5': 'yellow',
+          '6': 'red',
+          '7': 'green',
+          '8': 'purple',
+          '9': 'orange',
+          '10': 'brown',
+          '11': 'golden',
+          '12': 'pink',
+          '13': 'parent',
+        };
 
 
-        switch ( noteSection.selectedFlags )
+        studentNotesFlags = noteSection.selectedFlags.map( flagId => flagMap[flagId] || 'no_flag' );
+
+
+        if ( studentNotesFlags.length === 0 )
         {
-          case '1':
-            studentNotesFlag = 'no_flag';
-            break;
-          case '2':
-            studentNotesFlag = 'new_registration';
-            break;
-          case '3':
-            studentNotesFlag = 'gray';
-            break;
-          case '4':
-            studentNotesFlag = 'blue';
-            break;
-          case '5':
-            studentNotesFlag = 'yellow';
-            break;
-          case '6':
-            studentNotesFlag = 'red';
-            break;
-          case '7':
-            studentNotesFlag = 'green';
-            break;
-          case '8':
-            studentNotesFlag = 'purple';
-            break;
-          case '9':
-            studentNotesFlag = 'orange';
-            break;
-          case '10':
-            studentNotesFlag = 'brown';
-            break;
-          case '11':
-            studentNotesFlag = 'golden';
-            break;
-          case '12':
-            studentNotesFlag = 'pink';
-            break;
-          case '13':
-            studentNotesFlag = 'parent';
-            break;
-          default:
-            break;
+          studentNotesFlags = ['no_flag'];
         }
 
         if ( noteSection.selectedSetTypeFlag === '1' )
@@ -296,7 +274,7 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
           const requestBody = {
             studentKey: id.toString(),
             studentNotes: noteSection.studentNotes,
-            studentNotesFlag: studentNotesFlag,
+            studentNotesFlag: studentNotesFlags,
             flagSetType: flagSetType,
             flagSetDate: flagSetDate,
             flagUnsetType: flagUnsetType,
@@ -304,6 +282,14 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
             only_admin: adminOnly,
             is_urgent: is_urgent,
           };
+
+          console.log( '========== API REQUEST START ==========' );
+          console.log( 'API URL:', apiUrl + 'add-student-notes' );
+          console.log( 'Section Index:', index + 1 );
+          console.log( 'Request Body:', JSON.stringify( requestBody, null, 2 ) );
+          console.log( 'Selected Flag IDs:', noteSection.selectedFlags );
+          console.log( 'Mapped Flag Values:', studentNotesFlags );
+          console.log( '========== API REQUEST END ==========' );
 
           const token = await AsyncStorage.getItem( 'token' );
           const response = await fetch( apiUrl + 'add-student-notes', {
@@ -317,7 +303,10 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
 
           if ( !response.ok )
           {
-            throw new Error( `Failed to submit note section ${ index + 1 }` );
+            const errorData = await response.json().catch( () => null );
+            const errorMessage = errorData?.message || errorData?.error || `Failed to submit note section ${ index + 1 }`;
+            console.error( 'API Error:', errorData );
+            throw new Error( errorMessage );
           }
         }
       }
@@ -551,19 +540,46 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
               <View style={dynamicStyles.flagNotesContainer}>
                 <Text style={dynamicStyles.flagNotesLabel}>Flag Notes</Text>
                 <Text style={dynamicStyles.flagNotesDescription}>
-                  Please select the note's flag here
+                  Please select the note's flag here (multiple selection allowed)
                 </Text>
               </View>
             </View>
 
-            <RadioGroup
-              radioButtons={FlagNotes}
-              onPress={( value ) => handleRadioButtonChange( value, index )}
-              selectedId={addNotesStore.addNotesData[index].selectedFlags}
-              containerStyle={[dynamicStyles.radioButtonContainer]}
-            />
+            <View style={[dynamicStyles.radioButtonContainer]}>
+              {FlagNotes.map( ( flag ) => (
+                <Pressable
+                  key={flag.id}
+                  onPress={() => handleCheckboxChange( flag.id, index )}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginVertical: 8,
+                    marginHorizontal: 5,
+                  }}>
+                  <AdvancedCheckbox
+                    value={addNotesStore.addNotesData[index].selectedFlags.includes( flag.id )}
+                    onValueChange={() => handleCheckboxChange( flag.id, index )}
+                    size={20}
+                    checkedColor={flag.color || '#B6488D'}
+                    uncheckedColor="#999"
+                    containerStyle={{
+                      marginRight: 10,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: flag.color || '#000',
+                      fontWeight: '500',
+                    }}>
+                    {flag.label}
+                  </Text>
+                </Pressable>
+              ) )}
+            </View>
 
-            {addNotesStore.addNotesData[index].selectedFlags !== '1' && (
+            {addNotesStore.addNotesData[index].selectedFlags.length > 0 &&
+              !addNotesStore.addNotesData[index].selectedFlags.includes( '1' ) && (
               <View>
                 {FlagSetDate( index )}
                 {FlatUnsetType( index )}

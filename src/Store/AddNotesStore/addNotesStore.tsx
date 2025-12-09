@@ -6,7 +6,7 @@ class AddNotesStore
 {
   addNotesData: Array<{
     studentNotes: string;
-    selectedFlags: string;
+    selectedFlags: string[];
     selectedSetTypeFlag: string;
     selectedUnSetTypeFlag: string;
     selectedAdminOnly: string;
@@ -20,7 +20,7 @@ class AddNotesStore
   }> = [
       {
         studentNotes: '',
-        selectedFlags: '1',
+      selectedFlags: [],
         selectedSetTypeFlag: '1',
         selectedUnSetTypeFlag: '1',
         selectedAdminOnly: '2',
@@ -67,7 +67,7 @@ class AddNotesStore
   {
     this.addNotesData.push( {
       studentNotes: '',
-      selectedFlags: '1',
+      selectedFlags: [],
       selectedSetTypeFlag: '1',
       selectedUnSetTypeFlag: '1',
       selectedAdminOnly: '2',
@@ -105,9 +105,20 @@ class AddNotesStore
     this.addNotesData[index].flagUnsetDate = date;
   }
 
-  setSelectedFlags ( index: number, selectedFlags: string )
+  setSelectedFlags ( index: number, flagValue: string )
   {
-    this.addNotesData[index].selectedFlags = selectedFlags;
+    const flags = this.addNotesData[index].selectedFlags;
+    const flagIndex = flags.indexOf( flagValue );
+
+    if ( flagIndex > -1 )
+    {
+      // Remove flag if already selected
+      flags.splice( flagIndex, 1 );
+    } else
+    {
+      // Add flag if not selected
+      flags.push( flagValue );
+    }
   }
 
   setSelectedSetTypeFlag ( index: number, selectedSetTypeFlag: string )
