@@ -5,6 +5,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { AdvancedCheckbox } from 'react-native-advanced-checkbox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import LinearGradient from 'react-native-linear-gradient';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import
 {
@@ -41,7 +42,7 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
       addNotesStore.setAddNotesData( [
         {
           studentNotes: '',
-          selectedFlags: [],
+          selectedFlags: ['1'],
           selectedSetTypeFlag: '1',
           selectedUnSetTypeFlag: '1',
           selectedAdminOnly: '2',
@@ -121,7 +122,33 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
 
   const handleCheckboxChange = ( value: string, index: number ) =>
   {
-    addNotesStore.setSelectedFlags( index, value );
+    const currentFlags = addNotesStore.addNotesData[index].selectedFlags;
+
+
+    if ( value === '1' )
+    {
+
+      if ( currentFlags.includes( '1' ) )
+      {
+        addNotesStore.setSelectedFlags( index, '1' );
+      } else
+      {
+
+        while ( currentFlags.length > 0 )
+        {
+          addNotesStore.setSelectedFlags( index, currentFlags[0] );
+        }
+        addNotesStore.setSelectedFlags( index, '1' );
+      }
+    } else
+    {
+
+      if ( currentFlags.includes( '1' ) )
+      {
+        addNotesStore.setSelectedFlags( index, '1' );
+      }
+      addNotesStore.setSelectedFlags( index, value );
+    }
   };
 
   const handleRadioButtonSetChange = ( value: string, index: number ) =>
@@ -283,13 +310,6 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
             is_urgent: is_urgent,
           };
 
-          console.log( '========== API REQUEST START ==========' );
-          console.log( 'API URL:', apiUrl + 'add-student-notes' );
-          console.log( 'Section Index:', index + 1 );
-          console.log( 'Request Body:', JSON.stringify( requestBody, null, 2 ) );
-          console.log( 'Selected Flag IDs:', noteSection.selectedFlags );
-          console.log( 'Mapped Flag Values:', studentNotesFlags );
-          console.log( '========== API REQUEST END ==========' );
 
           const token = await AsyncStorage.getItem( 'token' );
           const response = await fetch( apiUrl + 'add-student-notes', {
@@ -463,7 +483,7 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
                   onChange={( event, date ) =>
                     onUnsetChange( event, date, index )
                   }
-                  minimumDate={minUnsetDate} // This can be set as per your business logic
+                  minimumDate={minUnsetDate} 
                 />
               )}
             </View>
@@ -540,7 +560,7 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
               <View style={dynamicStyles.flagNotesContainer}>
                 <Text style={dynamicStyles.flagNotesLabel}>Flag Notes</Text>
                 <Text style={dynamicStyles.flagNotesDescription}>
-                  Please select the note's flag here (multiple selection allowed)
+                  Please select the flag notes
                 </Text>
               </View>
             </View>
@@ -566,14 +586,45 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
                       marginRight: 10,
                     }}
                   />
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: flag.color || '#000',
-                      fontWeight: '500',
-                    }}>
-                    {flag.label}
-                  </Text>
+                  {flag.value === 'parent' ? (
+                    <LinearGradient
+                      colors={['rgba(199,34,43,1)', 'rgba(105,125,18,1)', 'rgba(145,201,44,1)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 8,
+                      }}>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          color: '#FFFFFF',
+                          fontWeight: '500',
+                        }}>
+                        {flag.label}
+                      </Text>
+                    </LinearGradient>
+                  ) : (
+                    <View
+                      style={{
+                        borderWidth: 2,
+                        borderColor: flag.color || '#B6488D',
+                        backgroundColor: flag.color || '#B6488D',
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 8,
+                      }}>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: '#FFFFFF',
+                            fontWeight: '500',
+                          }}>
+                          {flag.label}
+                        </Text>
+                    </View>
+                  )}
                 </Pressable>
               ) )}
             </View>
@@ -648,9 +699,9 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
             <Text style={dynamicStyles.buttonText}>Submit</Text>
           </Pressable>
         </View>
-        <Pressable onPress={handleAddNoteSection} style={dynamicStyles.addSectionButton}>
+        {/* <Pressable onPress={handleAddNoteSection} style={dynamicStyles.addSectionButton}>
           <Text style={dynamicStyles.buttonText}>Add More +</Text>
-        </Pressable>
+        </Pressable> */}
       </View>
     </ScrollView>
   );

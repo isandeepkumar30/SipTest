@@ -20,7 +20,7 @@ class AddNotesStore
   }> = [
       {
         studentNotes: '',
-      selectedFlags: [],
+      selectedFlags: ['1'],
         selectedSetTypeFlag: '1',
         selectedUnSetTypeFlag: '1',
         selectedAdminOnly: '2',
@@ -67,7 +67,7 @@ class AddNotesStore
   {
     this.addNotesData.push( {
       studentNotes: '',
-      selectedFlags: [],
+      selectedFlags: ['1'],
       selectedSetTypeFlag: '1',
       selectedUnSetTypeFlag: '1',
       selectedAdminOnly: '2',
