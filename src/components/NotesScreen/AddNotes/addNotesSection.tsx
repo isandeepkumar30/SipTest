@@ -618,7 +618,7 @@ export const AddNotesSection: React.FC<AddNotesProps> = observer( ( { id } ) =>
                         <Text
                           style={{
                             fontSize: 14,
-                            color: '#FFFFFF',
+                            color: ( flag.value === 'gray' || flag.value === 'new_registration' ) ? '#000000' : '#FFFFFF',
                             fontWeight: '500',
                           }}>
                           {flag.label}
