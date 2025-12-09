@@ -328,11 +328,18 @@ export const ViewNotes: React.FC<ViewNotesProps> = observer( ( { id } ) =>
                       ? { paddingTop: 4, paddingBottom: 10 }
                       : { paddingTop: 30 },
                   ]}>
-                  {item.only_admin === 1 ? (
-                    <View style={[styles.adminOnlyView]}>
-                      <Text style={[styles.adminOnlyText]}>Admin Only</Text>
-                    </View>
-                  ) : null}
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {item.only_admin === 1 ? (
+                      <View style={[styles.adminOnlyView]}>
+                        <Text style={[styles.adminOnlyText]}>Admin Only</Text>
+                      </View>
+                    ) : null}
+                    {item.is_urgent === 1 ? (
+                      <View style={[styles.urgentOnlyView]}>
+                        <Text style={[styles.urgentOnlyText]}>Urgent</Text>
+                      </View>
+                    ) : null}
+                  </View>
                   <Text style={[styles.eventLeftHeading]}>
                     {item.notes_added_by}{' '}
                     <Text

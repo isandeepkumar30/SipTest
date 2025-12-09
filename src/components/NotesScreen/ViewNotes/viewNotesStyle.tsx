@@ -50,6 +50,17 @@ export const styles = StyleSheet.create( {
     width: '28%',
   },
 
+  urgentOnlyView: {
+    backgroundColor: 'red',
+    padding: 5,
+    borderRadius: 5,
+    marginBottom: 20,
+    marginLeft: 10,
+    marginRight: 10,
+    // marginTop: 5,
+    // width: '28%',
+  },
+
   RaiseFlagView: {
     backgroundColor: 'lightgreen',
     marginTop: 10,
@@ -101,6 +112,13 @@ export const styles = StyleSheet.create( {
   },
 
   adminOnlyText: {
+    color: '#fff',
+    fontSize: 12,
+    marginBottom: 2,
+    fontWeight: '600',
+  },
+
+  urgentOnlyText: {
     color: '#fff',
     fontSize: 12,
     marginBottom: 2,
